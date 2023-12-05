@@ -1,1 +1,532 @@
-/home/andrewsj05/.local/bin/smp
+#!/usr/bin/env python
+import csv  # for saving playlists
+import glob
+import os
+from pathlib import Path
+from random import shuffle
+from select import select  # for non-blocking input, Unix only
+from sys import stdin
+
+import mutagen  # for getting song duration
+import pygame
+from pygame import mixer
+from pygame.mixer import music
+
+
+def q_should_advance():
+    # checks if we should play the next song in the queue
+    return not (music.get_busy() or Player.should_pause)\
+        and Player.playing_queue
+
+
+def input_entered(prompt):
+    # Check if user has entered a newline
+    # and return stdin if true
+    stdin_is_ready = select([stdin], [], [], 0)[0]
+    if stdin_is_ready:
+        return stdin_is_ready[0]
+    return False
+
+
+def guess_ext(song):
+    # Allows user to omit file extension as long
+    # as the file is in a format that Pygame supports
+    for ext in SUPPORTED_TYPES:
+        if (file := f"{song}.{ext}") in FILES:
+            return file
+    else:
+        return False
+
+
+def clamp(num, low, high):
+    return min(max(num, low), high)
+
+
+def timestamp(num):
+    mins, secs = divmod(num, 60)
+    return f"{mins}:{secs:02}"
+
+
+def type_converter(data, type_, err_msg):
+    try:
+        return type_(data)
+    except ValueError:
+        print(err_msg)
+
+
+def parse_input(string):
+    # str.split is insufficient for our needs as we need to be able to parse
+    # strings with spaces in them
+    out = []
+    accumulator = ""
+    quoted = False
+    for idx, ch in enumerate(string):
+        if ch == " " and not quoted:
+            # don't split by space if we are in quotes or the preceding
+            # character was '\'
+            if string[idx - 1] == "\\":
+                accumulator += ch
+                continue
+            if accumulator:
+                out.append(accumulator.strip())
+                accumulator = ""
+        elif ch == '\"':
+            quoted ^= True
+            if not quoted:
+                out.append(accumulator.strip())
+                accumulator = ""
+        elif ch == "\\":
+            continue
+        else:
+            accumulator += ch
+    if accumulator:
+        out.append(accumulator.strip())
+    return out
+
+
+def flatten(lst):
+    for elem in lst:
+        if isinstance(elem, list):
+            yield from flatten(elem)
+        else:
+            yield elem
+
+
+CONFIG_PATH = Path("~/.config/smp/config").expanduser()
+MUSIC_DIR = Path("~/music").expanduser()
+SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
+FILES = list(map(lambda f: Path(f).name, flatten(
+    [glob.glob(f"{MUSIC_DIR}/*.{ext}") for ext in SUPPORTED_TYPES])))
+PS = " "
+Q_CMDS = {
+    "add": lambda *args: q_add(*args),
+    "clear": lambda: q_clear(),
+    "remove": lambda *args: q_remove(*args),
+    "play": lambda: q_play(),
+    "next": lambda: q_next(),
+    "prev": lambda: q_prev(),
+    "loop": lambda: q_loop(),
+    "swap": lambda *args: q_swap(*args),
+    "shuffle": lambda: q_shuffle(),
+    "randomize": lambda: q_randomize(),
+    "save": lambda *args: q_save(*args),
+    "load": lambda *args: q_load(*args),
+    "status": lambda: q_status()
+}
+CMDS = {
+    "play": lambda *args: play(*args),
+    "stop": lambda: stop(),
+    "volume": lambda *args: volume(*args),
+    "ls": lambda: ls(),
+    "loop": lambda: loop(),
+    "time": lambda: time(),
+    "rewind": lambda *args: seek_relative(*args),
+    "forward": lambda *args: seek_relative(*args, forward=True),
+    "pause": lambda: pause(),
+    "unpause": lambda: unpause(),
+    "queue": lambda *args: queue(*args),
+    "help": lambda: smp_help(),
+    "exit": lambda: smp_exit(),
+    "quit": lambda: smp_exit(),
+    "config": lambda *args: config(*args),
+    "eval": lambda arg: print(eval(arg)),
+    "reload": lambda: reload()
+}
+
+
+class Player:
+    # Global settings for the music Player
+    volume = 100
+    loops = 0
+    offset = 0
+    duration = 0
+    queue = []
+    cur_song = ""
+    shuffled_queue = []
+    playing_queue = False
+    should_pause = False
+    q_idx = 0
+    q_should_loop = False
+    q_should_shuffle = False
+
+
+def reload():
+#    TODO: Find what library pygame uses 
+    pass
+#    cur_time = music.get_pos() / 1000 + Player.offset
+#    time = cur_time % Player.duration
+#    mixer.quit()
+#    mixer.init()
+#    if Player.cur_song:
+#        music.load(Player.cur_song)
+#        music.set_volume(Player.volume / 100)
+#        music.play(Player.loops, time)
+#        Player.offset = cur_time
+
+
+def config(*args):
+    # TODO: implement config parsing
+    if not CONFIG_PATH.exists():
+        print("You have no configuration file! Generating one now...")
+        if not CONFIG_PATH.parent.exists():
+            os.mkdir(CONFIG_PATH.parent)
+        with open(CONFIG_PATH, 'x') as f:
+            f.write("""# Path to all your songs
+MUSIC_DIR=~/music""")
+        print(f"Config file created in {CONFIG_PATH}")
+        return
+    cmd, *args = args
+    if cmd == "show":
+        with open(CONFIG_PATH) as f:
+            print(f.read())
+
+
+def play(*args):
+    if not args:
+        print("expected at least one argument")
+        return
+    Player.loops = 0
+    Player.offset = 0
+    Player.should_pause = False
+    if len(args) >= 1:
+        song = args[0]
+    if len(args) >= 2:
+        Player.volume = type_converter(
+            args[1], float, "Volume needs to be between 0 and 100")
+    if len(args) >= 3:
+        Player.loops = type_converter(
+            args[2], int, "Number of loops must be an integer")
+
+    try:
+        music.load(MUSIC_DIR / song)
+    except (pygame.error, FileNotFoundError):
+        file = song
+        song = guess_ext(song)
+        if not song:
+            print(f"Couldn't find {file} in {MUSIC_DIR}")
+            return
+        else:
+            music.load(MUSIC_DIR / song)
+    Player.cur_song = MUSIC_DIR / song
+    music.set_volume(Player.volume / 100)
+    music.play(Player.loops)
+    should_pause = False
+    file = mutagen.File(MUSIC_DIR / song)
+    Player.duration = file.info.length
+
+
+def volume(*args):
+    if not args:
+        print(f"Volume: {Player.volume}%")
+    elif len(args) == 1:
+        Player.volume = type_converter(
+            args[0], float, "Volume needs to be between 0 and 100")
+        music.set_volume(Player.volume / 100)
+
+
+def ls():
+    humanized = [song[:song.index('.')] for song in FILES]
+    print(", ".join(humanized))
+
+
+def loop():
+    if Player.loops > 0:
+        Player.loops = 0
+    Player.loops = ~Player.loops
+    if Player.loops:
+        print("Loop: on")
+    else:
+        print("Loop: off")
+        return
+    start = music.get_pos() / 1000
+    if music.get_busy() or Player.should_pause:
+        music.pause()
+        music.play(Player.loops, (start + Player.offset) % Player.duration)
+        Player.offset += start
+    if Player.should_pause:
+        music.pause()
+
+
+def time():
+    cur_time = music.get_pos() / 1000 + Player.offset
+    time = cur_time % Player.duration
+    if not music.get_busy():
+        if not Player.should_pause:
+            print("Nothing playing")
+            return
+    print(f"{timestamp(int(time))} elapsed, "
+          f"{timestamp(int(Player.duration - time))} remaining")
+
+
+def seek_relative(*args, forward=False):
+    if not args:
+        print("Expected a number in seconds")
+        return
+    if not music.get_busy():
+        if not Player.should_pause:
+            print("Nothing playing")
+            return
+    start = music.get_pos() / 1000 + Player.offset
+    if not forward:
+        time = clamp(float(args[0]), 0, start)
+        Player.offset = new_time = start - time
+    else:
+        time = clamp(float(args[0]), 0, Player.duration - start)
+        Player.offset = new_time = start + time
+    new_time %= Player.duration
+    Player.offset %= Player.duration
+    music.pause()
+    music.play(Player.loops, new_time)
+    if Player.should_pause:
+        music.pause()
+
+
+def pause():
+    Player.should_pause = ~Player.should_pause
+    if Player.should_pause:
+        music.pause()
+    else:
+        music.unpause()
+
+
+def stop():
+    music.stop()
+    music.unload()
+    Player.cur_song = ""
+    Player.playing_queue = False
+
+
+def unpause():
+    music.unpause()
+    should_pause = False
+
+
+def smp_help():
+    print(
+        """TODO: I should really do something about that.
+For now, check the source""")
+
+
+def smp_exit():
+    music.unload()
+    mixer.quit()
+    exit(0)
+
+
+def queue(*args):
+    if not args:
+        q_show()
+        return
+    cmd, *args = args
+    if cmd not in Q_CMDS:
+        autocomplete = [c for c in Q_CMDS if c.startswith(cmd)]
+        if not autocomplete:
+            invalid()
+        elif len(autocomplete) == 1:
+            Q_CMDS[autocomplete[0]](*args)
+        else:
+            print(
+                "Ambiguous command, could be one of "
+                f"{', '.join(autocomplete)}")
+    else:
+        Q_CMDS.get(cmd, invalid)(*args)
+
+
+def q_show():
+    if Player.q_should_shuffle:
+        humanized = [song[:song.index('.')]
+                     for song in Player.shuffled_queue]
+        print(", ".join(humanized))
+    else:
+        humanized = [song[:song.index('.')] for song in Player.queue]
+        print(", ".join(humanized))
+
+
+def q_status():
+    total_time = int(
+        sum([mutagen.File(MUSIC_DIR / f).info.length for f in Player.queue]))
+    cur_time = music.get_pos() / 1000 + Player.offset
+    if Player.duration == 0:
+        print("Nothing playing")
+        return
+    elif not Player.playing_queue:
+        print("No songs in the queue")
+        return
+    else:
+        time = cur_time % Player.duration
+    elapsed_time = int(sum(
+        [mutagen.File(MUSIC_DIR / f).info.length for f in
+         Player.queue[:Player.q_idx - 1]]))
+    cur_song = Path(Player.cur_song).name
+    cur_song = cur_song[:cur_song.rindex('.')]
+    print(f"Currently playing {cur_song}")
+    print(f"Total length of playlist: {timestamp(total_time)}")
+    print(
+        f"Total time elapsed: {timestamp(int(elapsed_time + time))} "
+        f"({100*((elapsed_time + time)/total_time):.1f}%)")
+
+
+def q_clear():
+    Player.queue.clear()
+    Player.shuffled_queue.clear()
+
+
+def q_add(*args):
+    for arg in args:
+        if arg in FILES:
+            Player.queue.append(arg)
+            Player.shuffled_queue.append(arg)
+        else:
+            file = guess_ext(arg)
+            if file:
+                Player.queue.append(file)
+                Player.shuffled_queue.append(file)
+
+
+def q_next():
+    if not Player.playing_queue:
+        if not Player.queue:
+            print("Nothing queued")
+        else:
+            print("Either end of queue already reached or nothing playing")
+    else:
+        music.stop()
+        music.unload()
+        Player.playing_queue = False
+        q_play()
+
+
+def q_prev():
+    if Player.q_idx > 1:
+        Player.q_idx -= 2
+        q_play()
+    elif Player.q_idx == 0:
+        Player.q_idx = len(Player.queue) - 2
+        q_play()
+
+
+def q_loop():
+    Player.q_should_loop ^= True
+
+
+def q_randomize():
+    if not Player.shuffled_queue:
+        print("Nothing to randomize")
+        return
+    elif len(Player.shuffled_queue) == 1:
+        print("Still nothing to randomize")
+        return
+    initial = [*Player.shuffled_queue]
+    while Player.shuffled_queue == initial:
+        shuffle(Player.shuffled_queue)
+    Player.q_should_shuffle = True
+
+
+def q_shuffle():
+    Player.q_should_shuffle ^= True
+    if Player.queue == Player.shuffled_queue:
+        q_randomize()
+
+
+def q_play():
+    Player.playing_queue = True
+    if not Player.q_should_shuffle:
+        Player.cur_song = MUSIC_DIR / Player.queue[Player.q_idx]
+    else:
+        Player.cur_song = MUSIC_DIR / Player.shuffled_queue[Player.q_idx]
+    song = Player.cur_song
+    music.load(song)
+    Player.loops = 0
+    Player.offset = 0
+    Player.should_pause = False
+    file = mutagen.File(song)
+    Player.duration = file.info.length
+    music.play()
+    if Player.q_idx < len(Player.queue) - 1:
+        Player.q_idx += 1
+    else:
+        if not Player.q_should_loop:
+            Player.playing_queue = False
+        Player.q_idx = 0
+
+
+def q_save(file):
+    with open(f"{MUSIC_DIR}/playlists/{file}.csv", 'w', newline='') as f:
+        writer = csv.writer(f, delimiter=",")
+        writer.writerow(Player.queue)
+
+
+def q_load(file):
+    if not Path.exists(Path(f"{MUSIC_DIR}/playlists/{file}.csv")):
+        print("That playlist doesn't exist")
+        return
+    with open(f"{MUSIC_DIR}/playlists/{file}.csv", 'r', newline='') as f:
+        reader = csv.reader(f, delimiter=",")
+        Player.queue = next(iter(reader))
+        Player.shuffled_queue = [*Player.queue]
+
+
+def q_remove(*args):
+    for arg in args:
+        if arg in Player.queue:
+            Player.queue.remove(arg)
+            Player.shuffled_queue.remove(arg)
+
+
+def q_swap(*args):
+    if len(args) % 2 != 0:
+        print("Expected an even number of arguments")
+        return
+    for i in range(0, len(args), 2):
+        first, second = args[i], args[i + 1]
+        if first in Player.queue and second in Player.queue:
+            idx1, idx2 = Player.queue.index(first), Player.queue.index(second)
+            Player.queue[idx1], Player.queue[idx2]\
+                = Player.queue[idx2], Player.queue[idx1]
+        else:
+            first = guess_ext(first)
+            second = guess_ext(second)
+            if first and second:
+                idx1, idx2 = Player.queue.index(
+                    first), Player.queue.index(second)
+                Player.queue[idx1], Player.queue[idx2]\
+                    = Player.queue[idx2], Player.queue[idx1]
+
+
+def invalid():
+    print("Command does not exist")
+
+
+def main():
+    mixer.init()
+    print(end=PS, flush=True)
+    while True:
+        choice = input_entered(PS)
+        if q_should_advance():
+            q_play()
+        if not choice:
+            continue
+        else:
+            choice = parse_input(choice.readline().strip())
+            if not choice:
+                print(end=PS, flush=True)
+                continue
+            cmd, *args = choice
+            if cmd in CMDS:
+                CMDS[cmd](*args)
+            else:
+                autocomplete = [c for c in CMDS if c.startswith(cmd)]
+                if not autocomplete:
+                    invalid()
+                elif len(autocomplete) == 1:
+                    CMDS[autocomplete[0]](*args)
+                else:
+                    print(
+                        "Ambiguous command, could be one of "
+                        f"{', '.join(autocomplete)}")
+            print(end=PS, flush=True)
+            continue
+
+
+if __name__ == "__main__":
+    main()
