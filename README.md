@@ -6,7 +6,9 @@ Command-line music player written in Python.
 
 ```console
 cd ./smp
+python -m venv venv
 source ./venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 Optional:
 ```console
