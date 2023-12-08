@@ -4,12 +4,14 @@ Command-line music player written in Python.
 
 ## Quick Start
 
-```console
+```sh
 cd ./smp
+python -m venv venv
 source ./venv/bin/activate
+python -m pip install -r requirements.txt
 ```
 Optional:
-```console
+```sh
 chmod +x smp
 ```
 > [!WARNING]
