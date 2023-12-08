@@ -2,15 +2,24 @@
 import csv  # for saving playlists
 import glob
 import os
+import parser
 from pathlib import Path
 from random import shuffle
 from select import select  # for non-blocking input, Unix only
 from sys import stdin
+from time import sleep
 
 import mutagen  # for getting song duration
 import pygame
 from pygame import mixer
 from pygame.mixer import music
+
+
+class Settings:
+    def __init__(self, cfg_dict):
+        self._cfg_dict = cfg_dict
+        for key in cfg_dict:
+            setattr(self, key, cfg_dict[key])
 
 
 def q_should_advance():
@@ -22,6 +31,7 @@ def q_should_advance():
 def input_entered(prompt):
     # Check if user has entered a newline
     # and return stdin if true
+    # Unix only
     stdin_is_ready = select([stdin], [], [], 0)[0]
     if stdin_is_ready:
         return stdin_is_ready[0]
@@ -36,6 +46,34 @@ def guess_ext(song):
             return file
     else:
         return False
+
+
+def config(*args, generate=False):
+    # TODO: implement config parsing
+    if generate or not CONFIG_PATH.exists():
+        print("You have no configuration file! Generating one now...")
+        if not CONFIG_PATH.parent.exists():
+            os.mkdir(CONFIG_PATH.parent)
+        with open(CONFIG_PATH, 'x') as f:
+            f.write(
+                """[General]
+# Path to all your songs and playlists
+music_dir = ~/music
+playlist_dir = ~/music/playlists
+# Also equivalent to %(music_dir)s/playlists
+
+# By default, this prompt should look like a music note.
+# If it doesn't, either replace it or consider using a patched font.
+prompt = ' '
+""")
+        print(f"Config file created in {CONFIG_PATH}")
+        return
+    if not args:
+        return
+    cmd, *args = args
+    if cmd == "show":
+        with open(CONFIG_PATH) as f:
+            print(f.read())
 
 
 def clamp(num, low, high):
@@ -92,12 +130,18 @@ def flatten(lst):
             yield elem
 
 
-CONFIG_PATH = Path("~/.config/smp/config").expanduser()
-MUSIC_DIR = Path("~/music").expanduser()
+CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
+SETTINGS = Settings(parser.get_config(CONFIG_PATH))
+if not SETTINGS._cfg_dict:
+    config(generate=True)
+SETTINGS = Settings(parser.get_config(CONFIG_PATH))
+print(SETTINGS._cfg_dict)
+MUSIC_DIR = Path(SETTINGS.music_dir).expanduser()
+PLAYLIST_DIR = Path(SETTINGS.playlist_dir).expanduser()
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 FILES = list(map(lambda f: Path(f).name, flatten(
     [glob.glob(f"{MUSIC_DIR}/*.{ext}") for ext in SUPPORTED_TYPES])))
-PS = " "
+PS = SETTINGS.prompt
 Q_CMDS = {
     "add": lambda *args: q_add(*args),
     "clear": lambda: q_clear(),
@@ -129,7 +173,7 @@ CMDS = {
     "exit": lambda: smp_exit(),
     "quit": lambda: smp_exit(),
     "config": lambda *args: config(*args),
-    "eval": lambda arg: print(eval(arg)),
+    "eval": lambda arg: print(eval(arg)),  # For debug only
     "reload": lambda: reload()
 }
 
@@ -148,37 +192,6 @@ class Player:
     q_idx = 0
     q_should_loop = False
     q_should_shuffle = False
-
-
-def reload():
-#    TODO: Find what library pygame uses 
-    pass
-#    cur_time = music.get_pos() / 1000 + Player.offset
-#    time = cur_time % Player.duration
-#    mixer.quit()
-#    mixer.init()
-#    if Player.cur_song:
-#        music.load(Player.cur_song)
-#        music.set_volume(Player.volume / 100)
-#        music.play(Player.loops, time)
-#        Player.offset = cur_time
-
-
-def config(*args):
-    # TODO: implement config parsing
-    if not CONFIG_PATH.exists():
-        print("You have no configuration file! Generating one now...")
-        if not CONFIG_PATH.parent.exists():
-            os.mkdir(CONFIG_PATH.parent)
-        with open(CONFIG_PATH, 'x') as f:
-            f.write("""# Path to all your songs
-MUSIC_DIR=~/music""")
-        print(f"Config file created in {CONFIG_PATH}")
-        return
-    cmd, *args = args
-    if cmd == "show":
-        with open(CONFIG_PATH) as f:
-            print(f.read())
 
 
 def play(*args):
@@ -321,7 +334,7 @@ def queue(*args):
     if cmd not in Q_CMDS:
         autocomplete = [c for c in Q_CMDS if c.startswith(cmd)]
         if not autocomplete:
-            invalid()
+            invalid_cmd()
         elif len(autocomplete) == 1:
             Q_CMDS[autocomplete[0]](*args)
         else:
@@ -329,7 +342,7 @@ def queue(*args):
                 "Ambiguous command, could be one of "
                 f"{', '.join(autocomplete)}")
     else:
-        Q_CMDS.get(cmd, invalid)(*args)
+        Q_CMDS.get(cmd, invalid_cmd)(*args)
 
 
 def q_show():
@@ -433,7 +446,8 @@ def q_play():
     if not Player.q_should_shuffle:
         Player.cur_song = MUSIC_DIR / Player.queue[Player.q_idx]
     else:
-        Player.cur_song = MUSIC_DIR / Player.shuffled_queue[Player.q_idx]
+        Player.cur_song = MUSIC_DIR / \
+            Player.shuffled_queue[Player.q_idx]
     song = Player.cur_song
     music.load(song)
     Player.loops = 0
@@ -451,16 +465,16 @@ def q_play():
 
 
 def q_save(file):
-    with open(f"{MUSIC_DIR}/playlists/{file}.csv", 'w', newline='') as f:
+    with open(f"{PLAYLIST_DIR}/{file}.csv", 'w', newline='') as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerow(Player.queue)
 
 
 def q_load(file):
-    if not Path.exists(Path(f"{MUSIC_DIR}/playlists/{file}.csv")):
+    if not Path.exists(Path(f"{PLAYLIST_DIR}/{file}.csv")):
         print("That playlist doesn't exist")
         return
-    with open(f"{MUSIC_DIR}/playlists/{file}.csv", 'r', newline='') as f:
+    with open(f"{PLAYLIST_DIR}/{file}.csv", 'r', newline='') as f:
         reader = csv.reader(f, delimiter=",")
         Player.queue = next(iter(reader))
         Player.shuffled_queue = [*Player.queue]
@@ -493,7 +507,7 @@ def q_swap(*args):
                     = Player.queue[idx2], Player.queue[idx1]
 
 
-def invalid():
+def invalid_cmd():
     print("Command does not exist")
 
 
@@ -501,6 +515,8 @@ def main():
     mixer.init()
     print(end=PS, flush=True)
     while True:
+        sleep(0.01)
+        # Drastically reduces CPU usage with almost no performance hit
         choice = input_entered(PS)
         if q_should_advance():
             q_play()
@@ -517,7 +533,7 @@ def main():
             else:
                 autocomplete = [c for c in CMDS if c.startswith(cmd)]
                 if not autocomplete:
-                    invalid()
+                    invalid_cmd()
                 elif len(autocomplete) == 1:
                     CMDS[autocomplete[0]](*args)
                 else:
