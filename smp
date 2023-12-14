@@ -49,9 +49,8 @@ def guess_ext(song):
 
 
 def config(*args, generate=False):
-    # TODO: implement config parsing
     if generate or not CONFIG_PATH.exists():
-        print("You have no configuration file! Generating one now...")
+        print("Generating default configuration file...")
         if not CONFIG_PATH.parent.exists():
             os.mkdir(CONFIG_PATH.parent)
         with open(CONFIG_PATH, 'x') as f:
@@ -65,15 +64,25 @@ playlist_dir = ~/music/playlists
 # By default, this prompt should look like a music note.
 # If it doesn't, either replace it or consider using a patched font.
 prompt = ' '
+
+autocomplete = 1
+# 0 - No autocomplete (not recommended)
+# 1 - Unambiguous autocomplete (default)
+# 2 - Full autocomplete: If your input is ambiguous, smp will list
+# all possible commands and let you choose
+
+default_volume = 80
+# Sets the starting volume. Must be between 0 and 100
 """)
         print(f"Config file created in {CONFIG_PATH}")
         return
     if not args:
-        return
-    cmd, *args = args
-    if cmd == "show":
         with open(CONFIG_PATH) as f:
             print(f.read())
+            return
+    cmd, *_ = args
+    if cmd == generate:
+        config(generate=True)
 
 
 def clamp(num, low, high):
@@ -130,18 +139,44 @@ def flatten(lst):
             yield elem
 
 
+def reload_cfg():
+    global SETTINGS, MUSIC_DIR, PLAYLIST_DIR, PS, AC_LEVEL
+    SETTINGS = Settings(parser.get_config(CONFIG_PATH))
+    if not SETTINGS._cfg_dict:
+        config(generate=True)
+        SETTINGS = Settings(parser.get_config(CONFIG_PATH))
+    MUSIC_DIR = Path(SETTINGS.music_dir).expanduser()
+    PLAYLIST_DIR = Path(SETTINGS.playlist_dir).expanduser()
+    PS = SETTINGS.prompt
+    Player.volume = float(SETTINGS.default_volume)
+    try:
+        AC_LEVEL = int(SETTINGS.autocomplete)
+    except ValueError:
+        pass
+
+
+def reload_songs():
+    global FILES
+    FILES = list(map(lambda f: Path(f).name, flatten(
+        [glob.glob(f"{MUSIC_DIR}/*.{ext}") for ext in SUPPORTED_TYPES])))
+
+
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 SETTINGS = Settings(parser.get_config(CONFIG_PATH))
 if not SETTINGS._cfg_dict:
     config(generate=True)
-SETTINGS = Settings(parser.get_config(CONFIG_PATH))
-print(SETTINGS._cfg_dict)
+    SETTINGS = Settings(parser.get_config(CONFIG_PATH))
 MUSIC_DIR = Path(SETTINGS.music_dir).expanduser()
 PLAYLIST_DIR = Path(SETTINGS.playlist_dir).expanduser()
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 FILES = list(map(lambda f: Path(f).name, flatten(
     [glob.glob(f"{MUSIC_DIR}/*.{ext}") for ext in SUPPORTED_TYPES])))
 PS = SETTINGS.prompt
+AC_LEVEL = 1
+try:
+    AC_LEVEL = int(SETTINGS.autocomplete)
+except ValueError:
+    pass
 Q_CMDS = {
     "add": lambda *args: q_add(*args),
     "clear": lambda: q_clear(),
@@ -169,18 +204,19 @@ CMDS = {
     "pause": lambda: pause(),
     "unpause": lambda: unpause(),
     "queue": lambda *args: queue(*args),
+    "reload": lambda: reload_cfg(),
     "help": lambda: smp_help(),
     "exit": lambda: smp_exit(),
     "quit": lambda: smp_exit(),
     "config": lambda *args: config(*args),
-    "eval": lambda arg: print(eval(arg)),  # For debug only
-    "reload": lambda: reload()
+    "eval": lambda arg: print(eval(arg)),
+    # For debug only, exceptions are not handled
 }
 
 
 class Player:
     # Global settings for the music Player
-    volume = 100
+    volume = float(SETTINGS.default_volume)
     loops = 0
     offset = 0
     duration = 0
@@ -260,6 +296,34 @@ def loop():
         music.pause()
 
 
+def autocomplete(ac_level, cmd, cmd_set, *args):
+    if ac_level == 0:
+        print("Autocomplete is disabled")
+        return
+    else:
+        commands = [c for c in cmd_set if c.startswith(cmd)]
+        if len(commands) == 1:
+            cmd_set[commands[0]](*args)
+        elif len(commands) == 0:
+            print("Invalid command")
+        else:
+            if ac_level == 1:
+                print("Ambiguous command, could be one of "
+                      f"{', '.join(commands)}")
+            elif ac_level == 2:
+                for idx, command in enumerate(commands, start=1):
+                    print(f"    {idx}: {command}")
+                option = input(
+                    f"Select from the options above (1-{len(commands)}) or"
+                    " leave blank to cancel: ")
+                if not option:
+                    return
+                while option not in map(str, range(1, len(commands) + 1)):
+                    option = input(
+                        f"Please enter a number from 1-{len(commands)}: ")
+                cmd_set[commands[int(option) - 1]](*args)
+
+
 def time():
     cur_time = music.get_pos() / 1000 + Player.offset
     time = cur_time % Player.duration
@@ -331,18 +395,10 @@ def queue(*args):
         q_show()
         return
     cmd, *args = args
-    if cmd not in Q_CMDS:
-        autocomplete = [c for c in Q_CMDS if c.startswith(cmd)]
-        if not autocomplete:
-            invalid_cmd()
-        elif len(autocomplete) == 1:
-            Q_CMDS[autocomplete[0]](*args)
-        else:
-            print(
-                "Ambiguous command, could be one of "
-                f"{', '.join(autocomplete)}")
+    if cmd in Q_CMDS:
+        Q_CMDS[cmd](*args)
     else:
-        Q_CMDS.get(cmd, invalid_cmd)(*args)
+        autocomplete(AC_LEVEL, cmd, Q_CMDS, *args)
 
 
 def q_show():
@@ -362,14 +418,19 @@ def q_status():
     if Player.duration == 0:
         print("Nothing playing")
         return
-    elif not Player.playing_queue:
+    elif not Player.playing_queue and Player.q_idx:
+        # Fix bug where calling this function on last song gives no info
         print("No songs in the queue")
         return
     else:
         time = cur_time % Player.duration
+    if Player.cur_song.name in Player.queue[Player.q_idx - 1]:
+        queue = Player.queue
+    else:
+        queue = Player.shuffled_queue
     elapsed_time = int(sum(
         [mutagen.File(MUSIC_DIR / f).info.length for f in
-         Player.queue[:Player.q_idx - 1]]))
+         queue[:Player.q_idx - 1]]))
     cur_song = Path(Player.cur_song).name
     cur_song = cur_song[:cur_song.rindex('.')]
     print(f"Currently playing {cur_song}")
@@ -512,9 +573,19 @@ def invalid_cmd():
 
 
 def main():
+    cfg_last_modified = os.stat(CONFIG_PATH).st_mtime
+    songs_last_modified = os.stat(MUSIC_DIR).st_mtime
     mixer.init()
     print(end=PS, flush=True)
     while True:
+        cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+        songs_mtime = os.stat(MUSIC_DIR).st_mtime
+        if cfg_mtime != cfg_last_modified:
+            reload_cfg()  # Hot reloading
+            cfg_last_modified = cfg_mtime
+        if songs_mtime != songs_last_modified:
+            reload_songs()
+            songs_last_modified = songs_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
         choice = input_entered(PS)
@@ -531,15 +602,7 @@ def main():
             if cmd in CMDS:
                 CMDS[cmd](*args)
             else:
-                autocomplete = [c for c in CMDS if c.startswith(cmd)]
-                if not autocomplete:
-                    invalid_cmd()
-                elif len(autocomplete) == 1:
-                    CMDS[autocomplete[0]](*args)
-                else:
-                    print(
-                        "Ambiguous command, could be one of "
-                        f"{', '.join(autocomplete)}")
+                autocomplete(AC_LEVEL, cmd, CMDS, *args)
             print(end=PS, flush=True)
             continue
 
