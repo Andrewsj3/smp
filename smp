@@ -16,10 +16,35 @@ from pygame.mixer import music
 
 
 class Settings:
-    def __init__(self, cfg_dict):
-        self._cfg_dict = cfg_dict
+    music_dir: Path = Path("~/music").expanduser()
+    playlist_dir: Path = Path("~/music/playlists").expanduser()
+    prompt: str = ' '
+    autocomplete: int = 1
+    default_volume: float = 80
+    _cfg_dict = {}
+
+    @classmethod
+    def read_config(cls, cfg_dict, startup=True):
         for key in cfg_dict:
-            setattr(self, key, cfg_dict[key])
+            cls._cfg_dict[key] = cfg_dict[key]
+        attrs = [i for i in dir(cls) if '__' not in i][1:-1]
+        for attr in attrs:
+            type_ = cls.__annotations__[attr]
+            new_val = cls._cfg_dict[attr]
+            try:
+                setattr(cls, attr, type_(new_val))
+            except ValueError:
+                if startup:
+                    print(
+                        f"Invalid value specified for setting {attr}:"
+                        f" {new_val}")
+                else:
+                    print(
+                        f"\nInvalid value specified for setting {attr}: "
+                        f"{new_val}")
+                    print(end=cls.prompt, flush=True)
+        cls.music_dir = cls.music_dir.expanduser()
+        cls.playlist_dir = cls.playlist_dir.expanduser()
 
 
 def q_should_advance():
@@ -31,7 +56,10 @@ def q_should_advance():
 def input_entered(prompt):
     # Check if user has entered a newline
     # and return stdin if true
-    # Unix only
+    # (from docs)
+    # *** IMPORTANT NOTICE ***
+    # On Windows, only sockets are supported; on Unix, all file
+    # descriptors can be used.
     stdin_is_ready = select([stdin], [], [], 0)[0]
     if stdin_is_ready:
         return stdin_is_ready[0]
@@ -93,7 +121,7 @@ def timestamp(num):
     mins, secs = divmod(num, 60)
     if mins > 60:
         hours, mins = divmod(mins, 60)
-        return f"{hours}:{mins}:{secs:02}"
+        return f"{hours}:{mins:02}:{secs:02}"
     return f"{mins}:{secs:02}"
 
 
@@ -142,44 +170,23 @@ def flatten(lst):
             yield elem
 
 
-def reload_cfg():
-    global SETTINGS, MUSIC_DIR, PLAYLIST_DIR, PS, AC_LEVEL
-    SETTINGS = Settings(parser.get_config(CONFIG_PATH))
-    if not SETTINGS._cfg_dict:
-        config(generate=True)
-        SETTINGS = Settings(parser.get_config(CONFIG_PATH))
-    MUSIC_DIR = Path(SETTINGS.music_dir).expanduser()
-    PLAYLIST_DIR = Path(SETTINGS.playlist_dir).expanduser()
-    PS = SETTINGS.prompt
-    Player.volume = float(SETTINGS.default_volume)
-    try:
-        AC_LEVEL = int(SETTINGS.autocomplete)
-    except ValueError:
-        pass
+def reload_cfg(startup=True):
+    Settings.read_config(parser.get_config(
+        "/home/andrewsj05/.config/smp/smp.conf"), startup)
 
 
 def reload_songs():
     global FILES
     FILES = list(map(lambda f: Path(f).name, flatten(
-        [glob.glob(f"{MUSIC_DIR}/*.{ext}") for ext in SUPPORTED_TYPES])))
+        [glob.glob(f"{Settings.music_dir}/*.{ext}")
+         for ext in SUPPORTED_TYPES])))
 
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
-SETTINGS = Settings(parser.get_config(CONFIG_PATH))
-if not SETTINGS._cfg_dict:
-    config(generate=True)
-    SETTINGS = Settings(parser.get_config(CONFIG_PATH))
-MUSIC_DIR = Path(SETTINGS.music_dir).expanduser()
-PLAYLIST_DIR = Path(SETTINGS.playlist_dir).expanduser()
+Settings.read_config(parser.get_config(CONFIG_PATH))
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 FILES = list(map(lambda f: Path(f).name, flatten(
-    [glob.glob(f"{MUSIC_DIR}/*.{ext}") for ext in SUPPORTED_TYPES])))
-PS = SETTINGS.prompt
-AC_LEVEL = 1
-try:
-    AC_LEVEL = int(SETTINGS.autocomplete)
-except ValueError:
-    pass
+    [glob.glob(f"{Settings.music_dir}/*.{ext}") for ext in SUPPORTED_TYPES])))
 Q_CMDS = {
     "add": lambda *args: q_add(*args),
     "clear": lambda: q_clear(),
@@ -219,7 +226,7 @@ CMDS = {
 
 class Player:
     # Global settings for the music Player
-    volume = float(SETTINGS.default_volume)
+    volume = Settings.default_volume
     loops = 0
     offset = 0
     duration = 0
@@ -250,20 +257,20 @@ def play(*args):
             args[2], int, "Number of loops must be an integer")
 
     try:
-        music.load(MUSIC_DIR / song)
+        music.load(Settings.music_dir / song)
     except (pygame.error, FileNotFoundError):
         file = song
         song = guess_ext(song)
         if not song:
-            print(f"Couldn't find {file} in {MUSIC_DIR}")
+            print(f"Couldn't find {file} in {Settings.music_dir}")
             return
         else:
-            music.load(MUSIC_DIR / song)
-    Player.cur_song = MUSIC_DIR / song
+            music.load(Settings.music_dir / song)
+    Player.cur_song = Settings.music_dir / song
     music.set_volume(Player.volume / 100)
     music.play(Player.loops)
     should_pause = False
-    file = mutagen.File(MUSIC_DIR / song)
+    file = mutagen.File(Settings.music_dir / song)
     Player.duration = file.info.length
 
 
@@ -351,7 +358,7 @@ def seek_relative(*args, forward=False):
         time = clamp(float(args[0]), 0, start)
         Player.offset = new_time = start - time
     else:
-        time = clamp(float(args[0]), 0, Player.duration - start-0.1)
+        time = clamp(float(args[0]), 0, Player.duration - start - 0.1)
         Player.offset = new_time = start + time
     new_time %= Player.duration
     Player.offset %= Player.duration
@@ -401,7 +408,7 @@ def queue(*args):
     if cmd in Q_CMDS:
         Q_CMDS[cmd](*args)
     else:
-        autocomplete(AC_LEVEL, cmd, Q_CMDS, *args)
+        autocomplete(Settings.autocomplete, cmd, Q_CMDS, *args)
 
 
 def q_show():
@@ -416,7 +423,8 @@ def q_show():
 
 def q_status():
     total_time = int(
-        sum([mutagen.File(MUSIC_DIR / f).info.length for f in Player.queue]))
+        sum([mutagen.File(Settings.music_dir / f).info.length
+            for f in Player.queue]))
     cur_time = music.get_pos() / 1000 + Player.offset
     if Player.duration == 0:
         print("Nothing playing")
@@ -432,7 +440,7 @@ def q_status():
     else:
         queue = Player.shuffled_queue
     elapsed_time = int(sum(
-        [mutagen.File(MUSIC_DIR / f).info.length for f in
+        [mutagen.File(Settings.music_dir / f).info.length for f in
          queue[:Player.q_idx - 1]]))
     cur_song = Path(Player.cur_song).name
     cur_song = cur_song[:cur_song.rindex('.')]
@@ -508,9 +516,9 @@ def q_shuffle():
 def q_play():
     Player.playing_queue = True
     if not Player.q_should_shuffle:
-        Player.cur_song = MUSIC_DIR / Player.queue[Player.q_idx]
+        Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
     else:
-        Player.cur_song = MUSIC_DIR / \
+        Player.cur_song = Settings.music_dir / \
             Player.shuffled_queue[Player.q_idx]
     song = Player.cur_song
     music.load(song)
@@ -529,16 +537,16 @@ def q_play():
 
 
 def q_save(file):
-    with open(f"{PLAYLIST_DIR}/{file}.csv", 'w', newline='') as f:
+    with open(f"{Settings.playlist_dir}/{file}.csv", 'w', newline='') as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerow(Player.queue)
 
 
 def q_load(file):
-    if not Path.exists(Path(f"{PLAYLIST_DIR}/{file}.csv")):
+    if not Path.exists(Path(f"{Settings.playlist_dir}/{file}.csv")):
         print("That playlist doesn't exist")
         return
-    with open(f"{PLAYLIST_DIR}/{file}.csv", 'r', newline='') as f:
+    with open(f"{Settings.playlist_dir}/{file}.csv", 'r', newline='') as f:
         reader = csv.reader(f, delimiter=",")
         Player.queue = next(iter(reader))
         Player.shuffled_queue = [*Player.queue]
@@ -581,21 +589,26 @@ def invalid_cmd():
 
 def main():
     cfg_last_modified = os.stat(CONFIG_PATH).st_mtime
-    songs_last_modified = os.stat(MUSIC_DIR).st_mtime
+    songs_last_modified = os.stat(Settings.music_dir).st_mtime
     mixer.init()
-    print(end=PS, flush=True)
+    print(end=Settings.prompt, flush=True)
     while True:
-        cfg_mtime = os.stat(CONFIG_PATH).st_mtime
-        songs_mtime = os.stat(MUSIC_DIR).st_mtime
+        try:
+            cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+        except FileNotFoundError:
+            # Sometimes the config file is not recognized,
+            # so we just need to wait
+            continue
+        songs_mtime = os.stat(Settings.music_dir).st_mtime
         if cfg_mtime != cfg_last_modified:
-            reload_cfg()  # Hot reloading
+            reload_cfg(startup=False)  # Hot reloading
             cfg_last_modified = cfg_mtime
         if songs_mtime != songs_last_modified:
             reload_songs()
             songs_last_modified = songs_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
-        choice = input_entered(PS)
+        choice = input_entered(Settings.prompt)
         if q_should_advance():
             q_play()
         if not choice:
@@ -603,14 +616,14 @@ def main():
         else:
             choice = parse_input(choice.readline().strip())
             if not choice:
-                print(end=PS, flush=True)
+                print(end=Settings.prompt, flush=True)
                 continue
             cmd, *args = choice
             if cmd in CMDS:
                 CMDS[cmd](*args)
             else:
-                autocomplete(AC_LEVEL, cmd, CMDS, *args)
-            print(end=PS, flush=True)
+                autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+            print(end=Settings.prompt, flush=True)
             continue
 
 
