@@ -91,6 +91,9 @@ def clamp(num, low, high):
 
 def timestamp(num):
     mins, secs = divmod(num, 60)
+    if mins > 60:
+        hours, mins = divmod(mins, 60)
+        return f"{hours}:{mins}:{secs:02}"
     return f"{mins}:{secs:02}"
 
 
@@ -328,7 +331,7 @@ def time():
     cur_time = music.get_pos() / 1000 + Player.offset
     time = cur_time % Player.duration
     if not music.get_busy():
-        if not Player.should_pause:
+        if not Player.should_pause or (abs(time - Player.duration)) < 0.5:
             print("Nothing playing")
             return
     print(f"{timestamp(int(time))} elapsed, "
@@ -348,7 +351,7 @@ def seek_relative(*args, forward=False):
         time = clamp(float(args[0]), 0, start)
         Player.offset = new_time = start - time
     else:
-        time = clamp(float(args[0]), 0, Player.duration - start)
+        time = clamp(float(args[0]), 0, Player.duration - start-0.1)
         Player.offset = new_time = start + time
     new_time %= Player.duration
     Player.offset %= Player.duration
@@ -546,6 +549,10 @@ def q_remove(*args):
         if arg in Player.queue:
             Player.queue.remove(arg)
             Player.shuffled_queue.remove(arg)
+        else:
+            if (song := guess_ext(arg)) in Player.queue:
+                Player.queue.remove(song)
+                Player.shuffled_queue.remove(song)
 
 
 def q_swap(*args):
