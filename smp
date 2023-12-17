@@ -16,9 +16,9 @@ from pygame.mixer import music
 
 
 class Settings:
-    music_dir: Path = Path("~/music").expanduser()
-    playlist_dir: Path = Path("~/music/playlists").expanduser()
-    prompt: str = ' '
+    music_dir: lambda f: Path(f).expanduser() = "~/music"
+    playlist_dir: lambda f: Path(f).expanduser() = "~/music/playlists"
+    prompt: str = " "
     autocomplete: int = 1
     default_volume: float = 80
     _cfg_dict = {}
@@ -27,7 +27,7 @@ class Settings:
     def read_config(cls, cfg_dict, startup=True):
         for key in cfg_dict:
             cls._cfg_dict[key] = cfg_dict[key]
-        attrs = [i for i in dir(cls) if '__' not in i][1:-1]
+        attrs = [i for i in dir(cls) if "__" not in i][1:-1]
         for attr in attrs:
             type_ = cls.__annotations__[attr]
             new_val = cls._cfg_dict[attr]
@@ -37,11 +37,13 @@ class Settings:
                 if startup:
                     print(
                         f"Invalid value specified for setting {attr}:"
-                        f" {new_val}")
+                        f" {new_val}"
+                    )
                 else:
                     print(
                         f"\nInvalid value specified for setting {attr}: "
-                        f"{new_val}")
+                        f"{new_val}"
+                    )
                     print(end=cls.prompt, flush=True)
         cls.music_dir = cls.music_dir.expanduser()
         cls.playlist_dir = cls.playlist_dir.expanduser()
@@ -49,15 +51,16 @@ class Settings:
 
 def q_should_advance():
     # checks if we should play the next song in the queue
-    return not (music.get_busy() or Player.should_pause)\
-        and Player.playing_queue
+    return (
+        not (music.get_busy() or Player.should_pause) and Player.playing_queue
+    )
 
 
 def input_entered(prompt):
     # Check if user has entered a newline
     # and return stdin if true
     # (from docs)
-    # *** IMPORTANT NOTICE ***
+    # IMPORTANT NOTICE
     # On Windows, only sockets are supported; on Unix, all file
     # descriptors can be used.
     stdin_is_ready = select([stdin], [], [], 0)[0]
@@ -81,7 +84,7 @@ def config(*args, generate=False):
         print("Generating default configuration file...")
         if not CONFIG_PATH.parent.exists():
             os.mkdir(CONFIG_PATH.parent)
-        with open(CONFIG_PATH, 'x') as f:
+        with open(CONFIG_PATH, "x") as f:
             f.write(
                 """[General]
 # Path to all your songs and playlists
@@ -101,7 +104,8 @@ autocomplete = 1
 
 default_volume = 80
 # Sets the starting volume. Must be between 0 and 100
-""")
+"""
+            )
         print(f"Config file created in {CONFIG_PATH}")
         return
     if not args:
@@ -148,7 +152,7 @@ def parse_input(string):
             if accumulator:
                 out.append(accumulator.strip())
                 accumulator = ""
-        elif ch == '\"':
+        elif ch == '"':
             quoted ^= True
             if not quoted:
                 out.append(accumulator.strip())
@@ -171,22 +175,40 @@ def flatten(lst):
 
 
 def reload_cfg(startup=True):
-    Settings.read_config(parser.get_config(
-        "/home/andrewsj05/.config/smp/smp.conf"), startup)
+    Settings.read_config(
+        parser.get_config("/home/andrewsj05/.config/smp/smp.conf"), startup
+    )
 
 
 def reload_songs():
     global FILES
-    FILES = list(map(lambda f: Path(f).name, flatten(
-        [glob.glob(f"{Settings.music_dir}/*.{ext}")
-         for ext in SUPPORTED_TYPES])))
+    FILES = list(
+        map(
+            lambda f: Path(f).name,
+            flatten(
+                [
+                    glob.glob(f"{Settings.music_dir}/*.{ext}")
+                    for ext in SUPPORTED_TYPES
+                ]
+            ),
+        )
+    )
 
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 Settings.read_config(parser.get_config(CONFIG_PATH))
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
-FILES = list(map(lambda f: Path(f).name, flatten(
-    [glob.glob(f"{Settings.music_dir}/*.{ext}") for ext in SUPPORTED_TYPES])))
+FILES = list(
+    map(
+        lambda f: Path(f).name,
+        flatten(
+            [
+                glob.glob(f"{Settings.music_dir}/*.{ext}")
+                for ext in SUPPORTED_TYPES
+            ]
+        ),
+    )
+)
 Q_CMDS = {
     "add": lambda *args: q_add(*args),
     "clear": lambda: q_clear(),
@@ -200,7 +222,7 @@ Q_CMDS = {
     "randomize": lambda: q_randomize(),
     "save": lambda *args: q_save(*args),
     "load": lambda *args: q_load(*args),
-    "status": lambda: q_status()
+    "status": lambda: q_status(),
 }
 CMDS = {
     "play": lambda *args: play(*args),
@@ -251,10 +273,12 @@ def play(*args):
         song = args[0]
     if len(args) >= 2:
         Player.volume = type_converter(
-            args[1], float, "Volume needs to be between 0 and 100")
+            args[1], float, "Volume needs to be between 0 and 100"
+        )
     if len(args) >= 3:
         Player.loops = type_converter(
-            args[2], int, "Number of loops must be an integer")
+            args[2], int, "Number of loops must be an integer"
+        )
 
     try:
         music.load(Settings.music_dir / song)
@@ -279,12 +303,13 @@ def volume(*args):
         print(f"Volume: {Player.volume}%")
     elif len(args) == 1:
         Player.volume = type_converter(
-            args[0], float, "Volume needs to be between 0 and 100")
+            args[0], float, "Volume needs to be between 0 and 100"
+        )
         music.set_volume(Player.volume / 100)
 
 
 def ls():
-    humanized = [song[:song.index('.')] for song in FILES]
+    humanized = [song[: song.index(".")] for song in FILES]
     print(", ".join(humanized))
 
 
@@ -318,19 +343,23 @@ def autocomplete(ac_level, cmd, cmd_set, *args):
             print("Invalid command")
         else:
             if ac_level == 1:
-                print("Ambiguous command, could be one of "
-                      f"{', '.join(commands)}")
+                print(
+                    "Ambiguous command, could be one of "
+                    f"{', '.join(commands)}"
+                )
             elif ac_level == 2:
                 for idx, command in enumerate(commands, start=1):
                     print(f"    {idx}: {command}")
                 option = input(
                     f"Select from the options above (1-{len(commands)}) or"
-                    " leave blank to cancel: ")
+                    " leave blank to cancel: "
+                )
                 if not option:
                     return
                 while option not in map(str, range(1, len(commands) + 1)):
                     option = input(
-                        f"Please enter a number from 1-{len(commands)}: ")
+                        f"Please enter a number from 1-{len(commands)}: "
+                    )
                 cmd_set[commands[int(option) - 1]](*args)
 
 
@@ -341,8 +370,10 @@ def time():
         if not Player.should_pause or (abs(time - Player.duration)) < 0.5:
             print("Nothing playing")
             return
-    print(f"{timestamp(int(time))} elapsed, "
-          f"{timestamp(int(Player.duration - time))} remaining")
+    print(
+        f"{timestamp(int(time))} elapsed, "
+        f"{timestamp(int(Player.duration - time))} remaining"
+    )
 
 
 def seek_relative(*args, forward=False):
@@ -391,7 +422,8 @@ def unpause():
 def smp_help():
     print(
         """TODO: I should really do something about that.
-For now, check the source""")
+For now, check the source"""
+    )
 
 
 def smp_exit():
@@ -413,18 +445,22 @@ def queue(*args):
 
 def q_show():
     if Player.q_should_shuffle:
-        humanized = [song[:song.index('.')]
-                     for song in Player.shuffled_queue]
+        humanized = [song[: song.index(".")] for song in Player.shuffled_queue]
         print(", ".join(humanized))
     else:
-        humanized = [song[:song.index('.')] for song in Player.queue]
+        humanized = [song[: song.index(".")] for song in Player.queue]
         print(", ".join(humanized))
 
 
 def q_status():
     total_time = int(
-        sum([mutagen.File(Settings.music_dir / f).info.length
-            for f in Player.queue]))
+        sum(
+            [
+                mutagen.File(Settings.music_dir / f).info.length
+                for f in Player.queue
+            ]
+        )
+    )
     cur_time = music.get_pos() / 1000 + Player.offset
     if Player.duration == 0:
         print("Nothing playing")
@@ -439,16 +475,22 @@ def q_status():
         queue = Player.queue
     else:
         queue = Player.shuffled_queue
-    elapsed_time = int(sum(
-        [mutagen.File(Settings.music_dir / f).info.length for f in
-         queue[:Player.q_idx - 1]]))
+    elapsed_time = int(
+        sum(
+            [
+                mutagen.File(Settings.music_dir / f).info.length
+                for f in queue[: Player.q_idx - 1]
+            ]
+        )
+    )
     cur_song = Path(Player.cur_song).name
-    cur_song = cur_song[:cur_song.rindex('.')]
+    cur_song = cur_song[: cur_song.rindex(".")]
     print(f"Currently playing {cur_song}")
     print(f"Total length of playlist: {timestamp(total_time)}")
     print(
         f"Total time elapsed: {timestamp(int(elapsed_time + time))} "
-        f"({100*((elapsed_time + time)/total_time):.1f}%)")
+        f"({100*((elapsed_time + time)/total_time):.1f}%)"
+    )
 
 
 def q_clear():
@@ -518,8 +560,9 @@ def q_play():
     if not Player.q_should_shuffle:
         Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
     else:
-        Player.cur_song = Settings.music_dir / \
-            Player.shuffled_queue[Player.q_idx]
+        Player.cur_song = (
+            Settings.music_dir / Player.shuffled_queue[Player.q_idx]
+        )
     song = Player.cur_song
     music.load(song)
     Player.loops = 0
@@ -537,7 +580,7 @@ def q_play():
 
 
 def q_save(file):
-    with open(f"{Settings.playlist_dir}/{file}.csv", 'w', newline='') as f:
+    with open(f"{Settings.playlist_dir}/{file}.csv", "w", newline="") as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerow(Player.queue)
 
@@ -546,7 +589,7 @@ def q_load(file):
     if not Path.exists(Path(f"{Settings.playlist_dir}/{file}.csv")):
         print("That playlist doesn't exist")
         return
-    with open(f"{Settings.playlist_dir}/{file}.csv", 'r', newline='') as f:
+    with open(f"{Settings.playlist_dir}/{file}.csv", "r", newline="") as f:
         reader = csv.reader(f, delimiter=",")
         Player.queue = next(iter(reader))
         Player.shuffled_queue = [*Player.queue]
@@ -571,16 +614,22 @@ def q_swap(*args):
         first, second = args[i], args[i + 1]
         if first in Player.queue and second in Player.queue:
             idx1, idx2 = Player.queue.index(first), Player.queue.index(second)
-            Player.queue[idx1], Player.queue[idx2]\
-                = Player.queue[idx2], Player.queue[idx1]
+            Player.queue[idx1], Player.queue[idx2] = (
+                Player.queue[idx2],
+                Player.queue[idx1],
+            )
         else:
             first = guess_ext(first)
             second = guess_ext(second)
             if first and second:
-                idx1, idx2 = Player.queue.index(
-                    first), Player.queue.index(second)
-                Player.queue[idx1], Player.queue[idx2]\
-                    = Player.queue[idx2], Player.queue[idx1]
+                idx1, idx2 = (
+                    Player.queue.index(first),
+                    Player.queue.index(second),
+                )
+                Player.queue[idx1], Player.queue[idx2] = (
+                    Player.queue[idx2],
+                    Player.queue[idx1],
+                )
 
 
 def invalid_cmd():
