@@ -45,8 +45,6 @@ class Settings:
                         f"{new_val}"
                     )
                     print(end=cls.prompt, flush=True)
-        cls.music_dir = cls.music_dir.expanduser()
-        cls.playlist_dir = cls.playlist_dir.expanduser()
 
 
 def q_should_advance():
