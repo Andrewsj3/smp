@@ -197,6 +197,7 @@ def reload_songs():
             ),
         )
     )
+    FILES.sort()
 
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
@@ -213,6 +214,7 @@ FILES = list(
         ),
     )
 )
+FILES.sort()
 Q_CMDS = {
     "add": lambda *args: q_add(*args),
     "clear": lambda: q_clear(),
@@ -658,11 +660,11 @@ def main():
     while True:
         try:
             cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+            songs_mtime = os.stat(Settings.music_dir).st_mtime
         except FileNotFoundError:
             # Sometimes the config file is not recognized,
             # so we just need to wait
             continue
-        songs_mtime = os.stat(Settings.music_dir).st_mtime
         if cfg_mtime != cfg_last_modified:
             reload_cfg(startup=False)  # Hot reloading
             cfg_last_modified = cfg_mtime
