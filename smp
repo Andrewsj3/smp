@@ -16,11 +16,15 @@ from pygame.mixer import music
 
 
 class Settings:
-    music_dir: lambda f: Path(f).expanduser() = "~/music"
-    playlist_dir: lambda f: Path(f).expanduser() = "~/music/playlists"
+    music_dir: lambda f: Path(f).expanduser() = "~"
+    playlist_dir: lambda f: Path(f).expanduser() = "~"
+    # Changed to ~ to ensure directory exists as invalid directory would
+    # make the program crash on startup. if this still crashes,
+    # you have bigger problems
     prompt: str = " "
     autocomplete: int = 1
     default_volume: float = 80
+    ls_sep: str = ", "
     _cfg_dict = {}
 
     @classmethod
@@ -35,6 +39,7 @@ class Settings:
             except KeyError:
                 config(generate=True)
                 reload_cfg()
+                return
             try:
                 setattr(cls, attr, type_(new_val))
             except ValueError:
@@ -49,6 +54,12 @@ class Settings:
                         f"{new_val}"
                     )
                     print(end=cls.prompt, flush=True)
+        if not Settings.music_dir.exists():
+            print("CRITICAL: specified music directory does not exist")
+            Settings.music_dir = Path("~").expanduser()
+        if not Settings.playlist_dir.exists():
+            print("CRITICAL: specified playlist directory does not exist")
+            Settings.playlist_dir = Path("~").expanduser()
 
 
 def q_should_advance():
@@ -108,12 +119,17 @@ autocomplete = 1
 
 default_volume = 80
 # Sets the starting volume. Must be between 0 and 100
+
+ls_sep = ", "
+# Controls how `ls` separates each element of output. Setting this to
+# " " allows you to use its output directly without having to remove commas
 """
             )
         print(f"Config file created in {CONFIG_PATH}")
         return
     if not args:
         with open(CONFIG_PATH) as f:
+            print(f"Config file located in {CONFIG_PATH}")
             print(f.read())
             return
     cmd, *_ = args
@@ -234,7 +250,8 @@ CMDS = {
     "play": lambda *args: play(*args),
     "stop": lambda: stop(),
     "volume": lambda *args: volume(*args),
-    "ls": lambda: ls(),
+    "ls": lambda *args: ls(*args),
+    "list": lambda *args: ls(*args),
     "loop": lambda: loop(),
     "time": lambda: time(),
     "rewind": lambda *args: seek_relative(*args),
@@ -285,6 +302,8 @@ def play(*args):
         Player.loops = type_converter(
             args[2], int, "Number of loops must be an integer"
         )
+    if Player.volume is None or Player.loops is None:
+        return
 
     try:
         music.load(Settings.music_dir / song)
@@ -314,9 +333,55 @@ def volume(*args):
         music.set_volume(Player.volume / 100)
 
 
-def ls():
+def ls(*args):
     humanized = [song[: song.index(".")] for song in FILES]
-    print(", ".join(humanized))
+    ls_args = []
+    arg_str = ""
+    for arg in args:
+        if arg.startswith("-"):
+            if arg[1:].isdigit():
+                # Don't confuse negative numbers with flags
+                arg_str += arg.strip()
+                continue
+            if arg_str:
+                ls_args.append(arg_str)
+                arg_str = ""
+            ls_args.append(arg)
+        else:
+            arg_str += arg.strip()
+    if arg_str:
+        ls_args.append(arg_str)
+    if len(ls_args) % 2 != 0:
+        print("Malformed arguments")
+        return
+    i_arg = iter(ls_args)
+    while True:
+        idxs = slice(len(humanized))
+        try:
+            flag, val = next(i_arg), next(i_arg)
+            flag = flag.lower()
+        except StopIteration:
+            break
+        if flag not in ("-s", "-n"):
+            print(f"Invalid flag {flag}")
+            continue
+        if flag == "-n":
+            vals = list(map(lambda x: int(str.strip(x)), val.split(",")))
+            idxs = slice(*vals)
+            humanized = humanized[idxs]
+        elif flag == "-s":
+            tmp = []
+            found = False
+            for song in humanized:
+                if not song.startswith(val):
+                    if not found:
+                        continue
+                    break
+                tmp.append(song)
+                found = True
+            humanized = tmp
+            del tmp
+    print(Settings.ls_sep.join(humanized))
 
 
 def loop():
@@ -394,6 +459,11 @@ def seek_relative(*args, forward=False):
             print("Nothing playing")
             return
     start = music.get_pos() / 1000 + Player.offset
+    try:
+        float(args[0])
+    except ValueError:
+        print("Expected a number in seconds")
+        return
     if not forward:
         time = clamp(float(args[0]), 0, start)
         Player.offset = new_time = start - time
