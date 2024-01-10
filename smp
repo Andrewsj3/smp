@@ -1,72 +1,19 @@
 #!/usr/bin/env python
-import csv  # for saving playlists
 import glob
 import os
 import parser
 from pathlib import Path
-from random import shuffle
 from select import select  # for non-blocking input, Unix only
 from sys import stdin
+import smp_queue as q
+from smp_queue import Settings, Player, queue
+from smp_ux import *
 from time import sleep
 
 import mutagen  # for getting song duration
 import pygame
 from pygame import mixer
 from pygame.mixer import music
-
-
-class Settings:
-    music_dir: lambda f: Path(f).expanduser() = "~"
-    playlist_dir: lambda f: Path(f).expanduser() = "~"
-    # Changed to ~ to ensure directory exists as invalid directory would
-    # make the program crash on startup. if this still crashes,
-    # you have bigger problems
-    prompt: str = " "
-    autocomplete: int = 1
-    default_volume: float = 80
-    ls_sep: str = ", "
-    _cfg_dict = {}
-
-    @classmethod
-    def read_config(cls, cfg_dict, startup=True):
-        for key in cfg_dict:
-            cls._cfg_dict[key] = cfg_dict[key]
-        attrs = [i for i in dir(cls) if "__" not in i][1:-1]
-        for attr in attrs:
-            type_ = cls.__annotations__[attr]
-            try:
-                new_val = cls._cfg_dict[attr]
-            except KeyError:
-                config(generate=True)
-                reload_cfg()
-                return
-            try:
-                setattr(cls, attr, type_(new_val))
-            except ValueError:
-                if startup:
-                    print(
-                        f"Invalid value specified for setting {attr}:"
-                        f" {new_val}"
-                    )
-                else:
-                    print(
-                        f"\nInvalid value specified for setting {attr}: "
-                        f"{new_val}"
-                    )
-                    print(end=cls.prompt, flush=True)
-        if not Settings.music_dir.exists():
-            print("CRITICAL: specified music directory does not exist")
-            Settings.music_dir = Path("~").expanduser()
-        if not Settings.playlist_dir.exists():
-            print("CRITICAL: specified playlist directory does not exist")
-            Settings.playlist_dir = Path("~").expanduser()
-
-
-def q_should_advance():
-    # checks if we should play the next song in the queue
-    return (
-        not (music.get_busy() or Player.should_pause) and Player.playing_queue
-    )
 
 
 def input_entered(prompt):
@@ -232,19 +179,19 @@ FILES = list(
 )
 FILES.sort()
 Q_CMDS = {
-    "add": lambda *args: q_add(*args),
-    "clear": lambda: q_clear(),
-    "remove": lambda *args: q_remove(*args),
-    "play": lambda: q_play(),
-    "next": lambda: q_next(),
-    "prev": lambda: q_prev(),
-    "loop": lambda: q_loop(),
-    "swap": lambda *args: q_swap(*args),
-    "shuffle": lambda: q_shuffle(),
-    "randomize": lambda: q_randomize(),
-    "save": lambda *args: q_save(*args),
-    "load": lambda *args: q_load(*args),
-    "status": lambda: q_status(),
+    "add": lambda *args: q.add(*args),
+    "clear": lambda: q.clear(),
+    "remove": lambda *args: q.remove(*args),
+    "play": lambda: q.play(),
+    "next": lambda: q.next(),
+    "prev": lambda: q.prev(),
+    "loop": lambda: q.loop(),
+    "swap": lambda *args: q.swap(*args),
+    "shuffle": lambda: q.shuffle(),
+    "randomize": lambda: q.randomize(),
+    "save": lambda *args: q.save(*args),
+    "load": lambda *args: q.load(*args),
+    "status": lambda: q.status(),
 }
 CMDS = {
     "play": lambda *args: play(*args),
@@ -267,22 +214,6 @@ CMDS = {
     "eval": lambda arg: print(eval(arg)),
     # For debug only, exceptions are not handled
 }
-
-
-class Player:
-    # Global settings for the music Player
-    volume = Settings.default_volume
-    loops = 0
-    offset = 0
-    duration = 0
-    queue = []
-    cur_song = ""
-    shuffled_queue = []
-    playing_queue = False
-    should_pause = False
-    q_idx = 0
-    q_should_loop = False
-    q_should_shuffle = False
 
 
 def play(*args):
@@ -402,38 +333,6 @@ def loop():
         music.pause()
 
 
-def autocomplete(ac_level, cmd, cmd_set, *args):
-    if ac_level == 0:
-        print("Autocomplete is disabled")
-        return
-    else:
-        commands = [c for c in cmd_set if c.startswith(cmd)]
-        if len(commands) == 1:
-            cmd_set[commands[0]](*args)
-        elif len(commands) == 0:
-            print("Invalid command")
-        else:
-            if ac_level == 1:
-                print(
-                    "Ambiguous command, could be one of "
-                    f"{', '.join(commands)}"
-                )
-            elif ac_level == 2:
-                for idx, command in enumerate(commands, start=1):
-                    print(f"    {idx}: {command}")
-                option = input(
-                    f"Select from the options above (1-{len(commands)}) or"
-                    " leave blank to cancel: "
-                )
-                if not option:
-                    return
-                while option not in map(str, range(1, len(commands) + 1)):
-                    option = input(
-                        f"Please enter a number from 1-{len(commands)}: "
-                    )
-                cmd_set[commands[int(option) - 1]](*args)
-
-
 def time():
     if Player.duration == 0:
         print("Nothing playing")
@@ -511,213 +410,6 @@ def smp_exit():
     exit(0)
 
 
-def queue(*args):
-    if not args:
-        q_show()
-        return
-    cmd, *args = args
-    if cmd in Q_CMDS:
-        Q_CMDS[cmd](*args)
-    else:
-        autocomplete(Settings.autocomplete, cmd, Q_CMDS, *args)
-
-
-def q_show():
-    if Player.q_should_shuffle:
-        humanized = [song[: song.index(".")] for song in Player.shuffled_queue]
-        print(", ".join(humanized))
-    else:
-        humanized = [song[: song.index(".")] for song in Player.queue]
-        print(", ".join(humanized))
-
-
-def q_status():
-    total_time = int(
-        sum(
-            [
-                mutagen.File(Settings.music_dir / f).info.length
-                for f in Player.queue
-            ]
-        )
-    )
-    cur_time = music.get_pos() / 1000 + Player.offset
-    if Player.duration == 0:
-        print("Nothing playing")
-        return
-    elif (
-        not Player.playing_queue
-        and Player.q_idx
-        or (not Player.playing_queue and not Player.q_idx)
-    ):
-        # Fix bug where calling this function on last song gives no info
-        print("No songs in the queue")
-        return
-    else:
-        time = cur_time % Player.duration
-    if Player.cur_song.name in Player.queue[Player.q_idx - 1]:
-        queue = Player.queue
-    else:
-        queue = Player.shuffled_queue
-    elapsed_time = int(
-        sum(
-            [
-                mutagen.File(Settings.music_dir / f).info.length
-                for f in queue[: Player.q_idx - 1]
-            ]
-        )
-    )
-    cur_song = Path(Player.cur_song).name
-    cur_song = cur_song[: cur_song.rindex(".")]
-    print(f"Currently playing {cur_song}")
-    print(f"Total length of playlist: {timestamp(total_time)}")
-    print(
-        f"Total time elapsed: {timestamp(int(elapsed_time + time))} "
-        f"({100*((elapsed_time + time)/total_time):.1f}%)"
-    )
-
-
-def q_clear():
-    Player.queue.clear()
-    Player.shuffled_queue.clear()
-
-
-def q_add(*args):
-    for arg in args:
-        if arg in FILES:
-            Player.queue.append(arg)
-            Player.shuffled_queue.append(arg)
-        else:
-            file = guess_ext(arg)
-            if file:
-                Player.queue.append(file)
-                Player.shuffled_queue.append(file)
-
-
-def q_next():
-    if not Player.playing_queue:
-        if not Player.queue:
-            print("Nothing queued")
-        else:
-            print("Either end of queue already reached or nothing playing")
-    else:
-        music.stop()
-        music.unload()
-        Player.playing_queue = False
-        q_play()
-
-
-def q_prev():
-    if Player.q_idx > 1:
-        Player.q_idx -= 2
-        q_play()
-    elif Player.q_idx == 0:
-        Player.q_idx = len(Player.queue) - 2
-        q_play()
-
-
-def q_loop():
-    Player.q_should_loop ^= True
-
-
-def q_randomize():
-    if not Player.shuffled_queue:
-        print("Nothing to randomize")
-        return
-    elif len(Player.shuffled_queue) == 1:
-        print("Still nothing to randomize")
-        return
-    initial = [*Player.shuffled_queue]
-    while Player.shuffled_queue == initial:
-        shuffle(Player.shuffled_queue)
-    Player.q_should_shuffle = True
-
-
-def q_shuffle():
-    Player.q_should_shuffle ^= True
-    if Player.queue == Player.shuffled_queue:
-        q_randomize()
-
-
-def q_play():
-    if not Player.queue:
-        print("Nothing in the queue")
-        return
-    Player.playing_queue = True
-    if not Player.q_should_shuffle:
-        Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
-    else:
-        Player.cur_song = (
-            Settings.music_dir / Player.shuffled_queue[Player.q_idx]
-        )
-    song = Player.cur_song
-    music.load(song)
-    Player.loops = 0
-    Player.offset = 0
-    Player.should_pause = False
-    file = mutagen.File(song)
-    Player.duration = file.info.length
-    music.play()
-    if Player.q_idx < len(Player.queue) - 1:
-        Player.q_idx += 1
-    else:
-        if not Player.q_should_loop:
-            Player.playing_queue = False
-        Player.q_idx = 0
-
-
-def q_save(file):
-    with open(f"{Settings.playlist_dir}/{file}.csv", "w", newline="") as f:
-        writer = csv.writer(f, delimiter=",")
-        writer.writerow(Player.queue)
-
-
-def q_load(file):
-    if not Path.exists(Path(f"{Settings.playlist_dir}/{file}.csv")):
-        print("That playlist doesn't exist")
-        return
-    with open(f"{Settings.playlist_dir}/{file}.csv", "r", newline="") as f:
-        reader = csv.reader(f, delimiter=",")
-        Player.queue = next(iter(reader))
-        Player.shuffled_queue = [*Player.queue]
-
-
-def q_remove(*args):
-    for arg in args:
-        if arg in Player.queue:
-            Player.queue.remove(arg)
-            Player.shuffled_queue.remove(arg)
-        else:
-            if (song := guess_ext(arg)) in Player.queue:
-                Player.queue.remove(song)
-                Player.shuffled_queue.remove(song)
-
-
-def q_swap(*args):
-    if len(args) % 2 != 0:
-        print("Expected an even number of arguments")
-        return
-    for i in range(0, len(args), 2):
-        first, second = args[i], args[i + 1]
-        if first in Player.queue and second in Player.queue:
-            idx1, idx2 = Player.queue.index(first), Player.queue.index(second)
-            Player.queue[idx1], Player.queue[idx2] = (
-                Player.queue[idx2],
-                Player.queue[idx1],
-            )
-        else:
-            first = guess_ext(first)
-            second = guess_ext(second)
-            if first and second:
-                idx1, idx2 = (
-                    Player.queue.index(first),
-                    Player.queue.index(second),
-                )
-                Player.queue[idx1], Player.queue[idx2] = (
-                    Player.queue[idx2],
-                    Player.queue[idx1],
-                )
-
-
 def invalid_cmd():
     print("Command does not exist")
 
@@ -744,8 +436,8 @@ def main():
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
         choice = input_entered(Settings.prompt)
-        if q_should_advance():
-            q_play()
+        if q.should_advance():
+            q.play()
         if not choice:
             continue
         else:
