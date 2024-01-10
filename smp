@@ -7,7 +7,7 @@ from select import select  # for non-blocking input, Unix only
 from sys import stdin
 import smp_queue as q
 from smp_queue import Settings, Player, queue
-from smp_ux import *
+from smp_common import *
 from time import sleep
 
 import mutagen  # for getting song duration
@@ -27,16 +27,6 @@ def input_entered(prompt):
     if stdin_is_ready:
         return stdin_is_ready[0]
     return False
-
-
-def guess_ext(song):
-    # Allows user to omit file extension as long
-    # as the file is in a format that Pygame supports
-    for ext in SUPPORTED_TYPES:
-        if (file := f"{song}.{ext}") in FILES:
-            return file
-    else:
-        return False
 
 
 def config(*args, generate=False):
@@ -133,66 +123,15 @@ def parse_input(string):
     return out
 
 
-def flatten(lst):
-    for elem in lst:
-        if isinstance(elem, list):
-            yield from flatten(elem)
-        else:
-            yield elem
-
-
 def reload_cfg(startup=True):
     Settings.read_config(
         parser.get_config("/home/andrewsj05/.config/smp/smp.conf"), startup
     )
 
 
-def reload_songs():
-    global FILES
-    FILES = list(
-        map(
-            lambda f: Path(f).name,
-            flatten(
-                [
-                    glob.glob(f"{Settings.music_dir}/*.{ext}")
-                    for ext in SUPPORTED_TYPES
-                ]
-            ),
-        )
-    )
-    FILES.sort()
-
-
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 Settings.read_config(parser.get_config(CONFIG_PATH))
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
-FILES = list(
-    map(
-        lambda f: Path(f).name,
-        flatten(
-            [
-                glob.glob(f"{Settings.music_dir}/*.{ext}")
-                for ext in SUPPORTED_TYPES
-            ]
-        ),
-    )
-)
-FILES.sort()
-Q_CMDS = {
-    "add": lambda *args: q.add(*args),
-    "clear": lambda: q.clear(),
-    "remove": lambda *args: q.remove(*args),
-    "play": lambda: q.play(),
-    "next": lambda: q.next(),
-    "prev": lambda: q.prev(),
-    "loop": lambda: q.loop(),
-    "swap": lambda *args: q.swap(*args),
-    "shuffle": lambda: q.shuffle(),
-    "randomize": lambda: q.randomize(),
-    "save": lambda *args: q.save(*args),
-    "load": lambda *args: q.load(*args),
-    "status": lambda: q.status(),
-}
 CMDS = {
     "play": lambda *args: play(*args),
     "stop": lambda: stop(),
@@ -223,6 +162,7 @@ def play(*args):
     Player.loops = 0
     Player.offset = 0
     Player.should_pause = False
+    Player.playing_queue = False
     if len(args) >= 1:
         song = args[0]
     if len(args) >= 2:
@@ -265,7 +205,9 @@ def volume(*args):
 
 
 def ls(*args):
-    humanized = [song[: song.index(".")] for song in FILES]
+    files = gen_files()
+    files.sort()
+    humanized = [song[: song.index(".")] for song in files]
     ls_args = []
     arg_str = ""
     for arg in args:
@@ -430,9 +372,6 @@ def main():
         if cfg_mtime != cfg_last_modified:
             reload_cfg(startup=False)  # Hot reloading
             cfg_last_modified = cfg_mtime
-        if songs_mtime != songs_last_modified:
-            reload_songs()
-            songs_last_modified = songs_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
         choice = input_entered(Settings.prompt)

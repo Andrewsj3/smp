@@ -1,3 +1,41 @@
+import glob
+from pathlib import Path
+from settings import Settings
+
+
+def flatten(lst):
+    for elem in lst:
+        if isinstance(elem, list):
+            yield from flatten(elem)
+        else:
+            yield elem
+
+
+def gen_files():
+    return list(
+        map(
+            lambda f: Path(f).name,
+            flatten(
+                [
+                    glob.glob(f"{Settings.music_dir}/*.{ext}")
+                    for ext in SUPPORTED_TYPES
+                ]
+            ),
+        )
+    )
+
+
+def guess_ext(song):
+    # Allows user to omit file extension as long
+    # as the file is in a format that Pygame supports
+    files = gen_files()
+    for ext in SUPPORTED_TYPES:
+        if (file := f"{song}.{ext}") in files:
+            return file
+    else:
+        return False
+
+
 def autocomplete(ac_level, cmd, cmd_set, *args):
     if ac_level == 0:
         print("Autocomplete is disabled")
@@ -36,3 +74,6 @@ def timestamp(num):
         hours, mins = divmod(mins, 60)
         return f"{hours}:{mins:02}:{secs:02}"
     return f"{mins}:{secs:02}"
+
+
+SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]

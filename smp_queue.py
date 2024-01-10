@@ -5,14 +5,20 @@ import csv
 import mutagen
 from player import Player
 from settings import Settings
-from smp_ux import *
+from smp_common import *
 
 
 def should_advance():
     # checks if we should play the next song in the queue
-    return (
-        not (music.get_busy() or Player.should_pause) and Player.playing_queue
-    )
+    if (
+        not (music.get_busy() or Player.should_pause)
+        and Player.playing_queue
+    ):
+        if Player.q_idx < len(Player.queue) - 1:
+            return True
+        else:
+            Player.playing_queue = False
+            return False
 
 
 def queue(*args):
@@ -48,11 +54,7 @@ def status():
     if Player.duration == 0:
         print("Nothing playing")
         return
-    elif (
-        not Player.playing_queue
-        and Player.q_idx
-        or (not Player.playing_queue and not Player.q_idx)
-    ):
+    elif not Player.playing_queue:
         # Fix bug where calling this function on last song gives no info
         print("No songs in the queue")
         return
@@ -86,20 +88,9 @@ def clear():
 
 
 def add(*args):
+    files = gen_files()
     for arg in args:
-        if arg in FILES:
-            Player.queue.append(arg)
-            Player.shuffled_queue.append(arg)
-        else:
-            file = guess_ext(arg)
-            if file:
-                Player.queue.append(file)
-                Player.shuffled_queue.append(file)
-
-
-def add(*args):
-    for arg in args:
-        if arg in FILES:
+        if arg in files:
             Player.queue.append(arg)
             Player.shuffled_queue.append(arg)
         else:
@@ -158,6 +149,8 @@ def play():
     if not Player.queue:
         print("Nothing in the queue")
         return
+    if Player.q_idx == len(Player.queue):
+        Player.q_idx = 0
     Player.playing_queue = True
     if not Player.q_should_shuffle:
         Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
@@ -173,7 +166,7 @@ def play():
     file = mutagen.File(song)
     Player.duration = file.info.length
     music.play()
-    if Player.q_idx < len(Player.queue) - 1:
+    if Player.q_idx < len(Player.queue):
         Player.q_idx += 1
     else:
         if not Player.q_should_loop:
