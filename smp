@@ -162,7 +162,6 @@ def play(*args):
     Player.loops = 0
     Player.offset = 0
     Player.should_pause = False
-    Player.playing_queue = False
     if len(args) >= 1:
         song = args[0]
     if len(args) >= 2:
@@ -180,17 +179,17 @@ def play(*args):
         music.load(Settings.music_dir / song)
     except (pygame.error, FileNotFoundError):
         file = song
-        song = guess_ext(song)
+        song = ac_songs(Settings.autocomplete, song)
         if not song:
-            print(f"Couldn't find {file} in {Settings.music_dir}")
             return
         else:
+            Player.playing_queue = False
             music.load(Settings.music_dir / song)
     Player.cur_song = Settings.music_dir / song
     music.set_volume(Player.volume / 100)
     music.play(Player.loops)
     should_pause = False
-    file = mutagen.File(Settings.music_dir / song)
+    file = mutagen.File(Player.cur_song)
     Player.duration = file.info.length
 
 

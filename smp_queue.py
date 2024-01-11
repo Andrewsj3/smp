@@ -10,11 +10,8 @@ from smp_common import *
 
 def should_advance():
     # checks if we should play the next song in the queue
-    if (
-        not (music.get_busy() or Player.should_pause)
-        and Player.playing_queue
-    ):
-        if Player.q_idx < len(Player.queue) - 1:
+    if not (music.get_busy() or Player.should_pause) and Player.playing_queue:
+        if Player.q_idx < len(Player.queue):
             return True
         else:
             Player.playing_queue = False
@@ -83,6 +80,7 @@ def status():
 
 
 def clear():
+    Player.q_idx = 0
     Player.queue.clear()
     Player.shuffled_queue.clear()
 
@@ -94,7 +92,7 @@ def add(*args):
             Player.queue.append(arg)
             Player.shuffled_queue.append(arg)
         else:
-            file = guess_ext(arg)
+            file = ac_songs(Settings.autocomplete, arg)
             if file:
                 Player.queue.append(file)
                 Player.shuffled_queue.append(file)
@@ -196,7 +194,7 @@ def remove(*args):
             Player.queue.remove(arg)
             Player.shuffled_queue.remove(arg)
         else:
-            if (song := guess_ext(arg)) in Player.queue:
+            if (song := ac_songs(Settings.autocomplete, arg)) in Player.queue:
                 Player.queue.remove(song)
                 Player.shuffled_queue.remove(song)
 
@@ -214,8 +212,8 @@ def swap(*args):
                 Player.queue[idx1],
             )
         else:
-            first = guess_ext(first)
-            second = guess_ext(second)
+            first = ac_songs(Settings.autocomplete, first)
+            second = ac_songs(Setting.autocomplete, second)
             if first and second:
                 idx1, idx2 = (
                     Player.queue.index(first),
