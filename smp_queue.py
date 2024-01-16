@@ -48,12 +48,8 @@ def status():
         )
     )
     cur_time = music.get_pos() / 1000 + Player.offset
-    if Player.duration == 0:
+    if not Player.playing_queue:
         print("Nothing playing")
-        return
-    elif not Player.playing_queue:
-        # Fix bug where calling this function on last song gives no info
-        print("No songs in the queue")
         return
     else:
         time = cur_time % Player.duration

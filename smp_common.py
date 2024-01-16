@@ -87,13 +87,14 @@ def ac_songs(ac_level, song):
         return songs[int(option) - 1]
 
 
-
 def timestamp(num):
     mins, secs = divmod(num, 60)
     if mins > 60:
         hours, mins = divmod(mins, 60)
         return f"{hours}:{mins:02}:{secs:02}"
     return f"{mins}:{secs:02}"
+
+
 
 
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]

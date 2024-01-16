@@ -142,6 +142,7 @@ CMDS = {
     "time": lambda: time(),
     "rewind": lambda *args: seek_relative(*args),
     "forward": lambda *args: seek_relative(*args, forward=True),
+    "seek": lambda *args: seek_absolute(*args),
     "pause": lambda: pause(),
     "unpause": lambda: unpause(),
     "queue": lambda *args: queue(*args),
@@ -264,7 +265,6 @@ def loop():
         print("Loop: on")
     else:
         print("Loop: off")
-        return
     start = music.get_pos() / 1000
     if music.get_busy() or Player.should_pause:
         music.pause()
@@ -292,23 +292,25 @@ def time():
 
 def seek_relative(*args, forward=False):
     if not args:
-        print("Expected a number in seconds")
+        print("Expected either a number in seconds or a timestamp")
         return
-    if not music.get_busy():
-        if not Player.should_pause:
-            print("Nothing playing")
-            return
+    if not Player.duration:
+        print("Nothing playing")
+        return
     start = music.get_pos() / 1000 + Player.offset
+    secs = args[0]
     try:
-        float(args[0])
+        float(secs)
     except ValueError:
-        print("Expected a number in seconds")
-        return
+        secs = timestamp_as_num(secs)
+        if not secs:
+            print("Expected either a number in seconds or a timestamp")
+            return
     if not forward:
-        time = clamp(float(args[0]), 0, start)
+        time = clamp(float(secs), 0, start)
         Player.offset = new_time = start - time
     else:
-        time = clamp(float(args[0]), 0, Player.duration - start - 0.1)
+        time = clamp(float(secs), 0, Player.duration - start - 0.1)
         Player.offset = new_time = start + time
     new_time %= Player.duration
     Player.offset %= Player.duration
@@ -316,6 +318,30 @@ def seek_relative(*args, forward=False):
     music.play(Player.loops, new_time)
     if Player.should_pause:
         music.pause()
+
+
+def seek_absolute(*args):
+    if not args:
+        print("Expected either a number in seconds or a timestamp")
+        return
+    if not Player.duration:
+        print("Nothing playing")
+        return
+    time = args[0]
+    try:
+        float(time)
+    except ValueError:
+        time = timestamp_as_num(time)
+        if not time:
+            print("Expected either a number in seconds or a timestamp")
+            return
+    time = clamp(float(time), 0, Player.duration-0.1)
+    Player.offset = time
+    music.pause()
+    music.play(Player.loops, time)
+    if Player.should_pause:
+        music.pause()
+
 
 
 def pause():
@@ -355,6 +381,19 @@ def invalid_cmd():
     print("Command does not exist")
 
 
+def timestamp_as_num(ts):
+    secs = 0
+    hms = re.compile(r"^[1-9]{1,2}:[0-5][0-9]:[0-5][0-9]$")
+    ms = re.compile(r"^[0-5][0-9]?:[0-5][0-9]$")
+    if re.match(hms, ts) or re.match(ms, ts):
+        ts = ts.split(":")
+        ts.reverse()
+        ts = list(map(int, ts))
+        for idx, num in enumerate(ts):
+            secs += num * (60**idx)
+        return secs
+
+
 def main():
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
     songs_last_modified = Settings.music_dir.stat().st_mtime
@@ -363,7 +402,6 @@ def main():
     while True:
         try:
             cfg_mtime = os.stat(CONFIG_PATH).st_mtime
-            songs_mtime = os.stat(Settings.music_dir).st_mtime
         except FileNotFoundError:
             # Sometimes the config file is not recognized,
             # so we just need to wait
