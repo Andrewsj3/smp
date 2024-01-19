@@ -43,32 +43,28 @@ def type_converter(data, type_, err_msg):
 
 
 def parse_input(string):
+    commands = string.strip(";").split(";")
     # str.split is insufficient for our needs as we need to be able to parse
     # strings with spaces in them
     out = []
     accumulator = ""
     quoted = False
-    for idx, ch in enumerate(string):
-        if ch == " " and not quoted:
-            # don't split by space if we are in quotes or the preceding
-            # character was '\'
-            if string[idx - 1] == "\\":
+    for i, command in enumerate(commands):
+        out.append([])
+        for idx, ch in enumerate(command):
+            if ch in ('"', "'"):
+                quoted ^= True
+            elif ch == " ":
+                if quoted:
+                    accumulator += ch
+                else:
+                    if accumulator:
+                        out[i].append(accumulator.strip())
+                        accumulator = ""
+            else:
                 accumulator += ch
-                continue
-            if accumulator:
-                out.append(accumulator.strip())
-                accumulator = ""
-        elif ch == '"':
-            quoted ^= True
-            if not quoted:
-                out.append(accumulator.strip())
-                accumulator = ""
-        elif ch == "\\":
-            continue
-        else:
-            accumulator += ch
-    if accumulator:
-        out.append(accumulator.strip())
+        out[i].append(accumulator.strip())
+        accumulator = ""
     return out
 
 
@@ -341,7 +337,7 @@ def main():
         except FileNotFoundError:
             failed_calls += 1
             # Sometimes the config file is not recognized,
-            # so we just need to wait. 
+            # so we just need to wait.
             if failed_calls > 10000:
                 print("CRITICAL: Config file not found!")
                 config(generate=True)
@@ -353,21 +349,24 @@ def main():
             cfg_last_modified = cfg_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
-        choice = input_entered(Settings.prompt)
+        command = input_entered(Settings.prompt)
         if q.should_advance():
             q.play()
-        if not choice:
+        if not command:
             continue
         else:
-            choice = parse_input(choice.readline().strip())
-            if not choice:
+            commands = parse_input(command.readline().strip())
+            if not commands:
                 print(end=Settings.prompt, flush=True)
                 continue
-            cmd, *args = choice
-            if cmd in CMDS:
-                CMDS[cmd](*args)
-            else:
-                autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+            for command in commands:
+                cmd, *args = command
+                if not cmd:
+                    continue
+                if cmd in CMDS:
+                    CMDS[cmd](*args)
+                else:
+                    autocomplete(Settings.autocomplete, cmd, CMDS, *args)
             print(end=Settings.prompt, flush=True)
             continue
 
