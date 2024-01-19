@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 import glob
 import os
-import parser
+import re
 from pathlib import Path
 from select import select  # for non-blocking input, Unix only
 from sys import stdin
 import smp_queue as q
-from smp_queue import Settings, Player, queue
+from smp_queue import Player, queue
 from smp_common import *
+from smp_help import ihelp
+from settings import *
 from time import sleep
 
 import mutagen  # for getting song duration
@@ -29,61 +31,8 @@ def input_entered(prompt):
     return False
 
 
-def config(*args, generate=False):
-    if generate or not CONFIG_PATH.exists():
-        print("Generating default configuration file...")
-        if not CONFIG_PATH.parent.exists():
-            os.mkdir(CONFIG_PATH.parent)
-        if CONFIG_PATH.exists():
-            os.remove(CONFIG_PATH)
-        with open(CONFIG_PATH, "x") as f:
-            f.write(
-                """[General]
-# Path to all your songs and playlists
-music_dir = ~/music
-playlist_dir = ~/music/playlists
-# Also equivalent to %(music_dir)s/playlists
-
-# By default, this prompt should look like a music note.
-# If it doesn't, either replace it or consider using a patched font.
-prompt = ' '
-
-autocomplete = 1
-# 0 - No autocomplete (not recommended)
-# 1 - Unambiguous autocomplete (default)
-# 2 - Full autocomplete: If your input is ambiguous, smp will list
-# all possible commands and let you choose
-
-default_volume = 80
-# Sets the starting volume. Must be between 0 and 100
-
-ls_sep = ", "
-# Controls how `ls` separates each element of output. Setting this to
-# " " allows you to use its output directly without having to remove commas
-"""
-            )
-        print(f"Config file created in {CONFIG_PATH}")
-        return
-    if not args:
-        with open(CONFIG_PATH) as f:
-            print(f"Config file located in {CONFIG_PATH}")
-            print(f.read())
-            return
-    cmd, *_ = args
-    if cmd == generate:
-        config(generate=True)
-
-
 def clamp(num, low, high):
     return min(max(num, low), high)
-
-
-def timestamp(num):
-    mins, secs = divmod(num, 60)
-    if mins > 60:
-        hours, mins = divmod(mins, 60)
-        return f"{hours}:{mins:02}:{secs:02}"
-    return f"{mins}:{secs:02}"
 
 
 def type_converter(data, type_, err_msg):
@@ -123,33 +72,26 @@ def parse_input(string):
     return out
 
 
-def reload_cfg(startup=True):
-    Settings.read_config(
-        parser.get_config("/home/andrewsj05/.config/smp/smp.conf"), startup
-    )
-
-
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 Settings.read_config(parser.get_config(CONFIG_PATH))
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
     "play": lambda *args: play(*args),
-    "stop": lambda: stop(),
+    "stop": lambda *args: stop(),
     "volume": lambda *args: volume(*args),
     "ls": lambda *args: ls(*args),
     "list": lambda *args: ls(*args),
-    "loop": lambda: loop(),
-    "time": lambda: time(),
+    "loop": lambda *args: loop(),
+    "time": lambda *args: time(),
     "rewind": lambda *args: seek_relative(*args),
     "forward": lambda *args: seek_relative(*args, forward=True),
     "seek": lambda *args: seek_absolute(*args),
-    "pause": lambda: pause(),
-    "unpause": lambda: unpause(),
+    "pause": lambda *args: pause(),
+    "unpause": lambda *args: unpause(),
     "queue": lambda *args: queue(*args),
-    "reload": lambda: reload_cfg(),
-    "help": lambda: smp_help(),
-    "exit": lambda: smp_exit(),
-    "quit": lambda: smp_exit(),
+    "help": lambda *args: ihelp(*args),
+    "exit": lambda *args: smp_exit(),
+    "quit": lambda *args: smp_exit(),
     "config": lambda *args: config(*args),
     "eval": lambda arg: print(eval(arg)),
     # For debug only, exceptions are not handled
@@ -335,13 +277,12 @@ def seek_absolute(*args):
         if not time:
             print("Expected either a number in seconds or a timestamp")
             return
-    time = clamp(float(time), 0, Player.duration-0.1)
+    time = clamp(float(time), 0, Player.duration - 0.1)
     Player.offset = time
     music.pause()
     music.play(Player.loops, time)
     if Player.should_pause:
         music.pause()
-
 
 
 def pause():
@@ -362,13 +303,6 @@ def stop():
 def unpause():
     music.unpause()
     should_pause = False
-
-
-def smp_help():
-    print(
-        """TODO: I should really do something about that.
-For now, check the source"""
-    )
 
 
 def smp_exit():
@@ -398,13 +332,21 @@ def main():
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
     songs_last_modified = Settings.music_dir.stat().st_mtime
     mixer.init()
+    failed_calls = 0
     print(end=Settings.prompt, flush=True)
     while True:
         try:
             cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+            failed_calls = 0
         except FileNotFoundError:
+            failed_calls += 1
             # Sometimes the config file is not recognized,
-            # so we just need to wait
+            # so we just need to wait. 
+            if failed_calls > 10000:
+                print("CRITICAL: Config file not found!")
+                config(generate=True)
+                # Other times it really doesn't exist, likely because
+                # it's been moved or deleted
             continue
         if cfg_mtime != cfg_last_modified:
             reload_cfg(startup=False)  # Hot reloading

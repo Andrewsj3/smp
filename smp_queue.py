@@ -11,7 +11,7 @@ from smp_common import *
 def should_advance():
     # checks if we should play the next song in the queue
     if not (music.get_busy() or Player.should_pause) and Player.playing_queue:
-        if Player.q_idx < len(Player.queue):
+        if Player.q_idx < len(Player.queue) or Player.q_should_loop:
             return True
         else:
             Player.playing_queue = False
@@ -108,16 +108,21 @@ def qnext():
 
 
 def prev():
-    if Player.q_idx > 1:
+    if not Player.playing_queue:
+        if not Player.queue:
+            print("Nothing queued")
+        else:
+            print("Either end of queue already reached or nothing playing")
+    elif Player.q_idx > 1:
         Player.q_idx -= 2
         play()
-    elif Player.q_idx == 0:
-        Player.q_idx = len(Player.queue) - 2
-        play()
+    else:
+        print("Can't go back any further")
 
 
 def loop():
     Player.q_should_loop ^= True
+    print(f"Queue loop: {'on' if Player.q_should_loop else 'off'}")
 
 
 def randomize():
@@ -223,16 +228,16 @@ def swap(*args):
 
 Q_CMDS = {
     "add": lambda *args: add(*args),
-    "clear": lambda: clear(),
+    "clear": lambda *args: clear(),
     "remove": lambda *args: remove(*args),
-    "play": lambda: play(),
-    "next": lambda: qnext(),
-    "prev": lambda: prev(),
-    "loop": lambda: loop(),
+    "play": lambda *args: play(),
+    "next": lambda *args: qnext(),
+    "prev": lambda *args: prev(),
+    "loop": lambda *args: loop(),
     "swap": lambda *args: swap(*args),
-    "shuffle": lambda: shuffle(),
-    "randomize": lambda: randomize(),
+    "shuffle": lambda *args: shuffle(),
+    "randomize": lambda *args: randomize(),
     "save": lambda *args: save(*args),
     "load": lambda *args: load(*args),
-    "status": lambda: status(),
+    "status": lambda *args: status(),
 }
