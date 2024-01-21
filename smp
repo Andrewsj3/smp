@@ -18,6 +18,51 @@ from pygame import mixer
 from pygame.mixer import music
 
 
+CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
+SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
+CMDS = {
+    "play": lambda *args: play(*args),
+    "stop": lambda *args: stop(),
+    "volume": lambda *args: volume(*args),
+    "ls": lambda *args: ls(*args),
+    "list": lambda *args: ls(*args),
+    "loop": lambda *args: loop(),
+    "time": lambda *args: time(),
+    "rewind": lambda *args: seek_relative(*args),
+    "forward": lambda *args: seek_relative(*args, forward=True),
+    "seek": lambda *args: seek_absolute(*args),
+    "pause": lambda *args: pause(),
+    "unpause": lambda *args: unpause(),
+    "queue": lambda *args: queue(*args),
+    "macro": lambda *args: add_macro(*args),
+    "help": lambda *args: ihelp(*args),
+    "exit": lambda *args: smp_exit(),
+    "quit": lambda *args: smp_exit(),
+    "config": lambda *args: config(*args),
+    "eval": lambda arg: print(eval(arg)),
+    # For debug only, exceptions are not handled
+}
+
+
+def add_macro(*args, macros):
+    if not args:
+        return
+    mcr, *args = args
+    if mcr in CMDS:
+        print("Macros can't be named existing commands")
+        return
+    if not args:
+        print("Macro needs at least one argument")
+        return
+    macros[mcr] = " ".join(args)
+
+
+def is_valid_cmd(cmd, cmd_set):
+    commands = [c for c in cmd_set if c.startswith(cmd)]
+    if len(commands) == 1:
+        return commands[0]
+
+
 def input_entered(prompt):
     # Check if user has entered a newline
     # and return stdin if true
@@ -66,32 +111,6 @@ def parse_input(string):
         out[i].append(accumulator.strip())
         accumulator = ""
     return out
-
-
-CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
-Settings.read_config(parser.get_config(CONFIG_PATH))
-SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
-CMDS = {
-    "play": lambda *args: play(*args),
-    "stop": lambda *args: stop(),
-    "volume": lambda *args: volume(*args),
-    "ls": lambda *args: ls(*args),
-    "list": lambda *args: ls(*args),
-    "loop": lambda *args: loop(),
-    "time": lambda *args: time(),
-    "rewind": lambda *args: seek_relative(*args),
-    "forward": lambda *args: seek_relative(*args, forward=True),
-    "seek": lambda *args: seek_absolute(*args),
-    "pause": lambda *args: pause(),
-    "unpause": lambda *args: unpause(),
-    "queue": lambda *args: queue(*args),
-    "help": lambda *args: ihelp(*args),
-    "exit": lambda *args: smp_exit(),
-    "quit": lambda *args: smp_exit(),
-    "config": lambda *args: config(*args),
-    "eval": lambda arg: print(eval(arg)),
-    # For debug only, exceptions are not handled
-}
 
 
 def play(*args):
@@ -307,10 +326,6 @@ def smp_exit():
     exit(0)
 
 
-def invalid_cmd():
-    print("Command does not exist")
-
-
 def timestamp_as_num(ts):
     secs = 0
     hms = re.compile(r"^[1-9]{1,2}:[0-5][0-9]:[0-5][0-9]$")
@@ -324,7 +339,22 @@ def timestamp_as_num(ts):
         return secs
 
 
+def parse_and_execute(cmd, cmd_set):
+    cmd = cmd.replace(";;", ";")
+    commands = parse_input(cmd)
+    for command in commands:
+        cmd, *args = command
+        if not cmd:
+            continue
+        if cmd in cmd_set:
+            cmd_set[cmd](*args)
+        else:
+            autocomplete(Settings.autocomplete, cmd, cmd_set, *args)
+
+
 def main():
+    macros = {}
+    Settings.read_config(parser.get_config(CONFIG_PATH))
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
     songs_last_modified = Settings.music_dir.stat().st_mtime
     mixer.init()
@@ -349,24 +379,35 @@ def main():
             cfg_last_modified = cfg_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
-        command = input_entered(Settings.prompt)
         if q.should_advance():
             q.play()
-        if not command:
+        if not (command := input_entered(Settings.prompt)):
             continue
         else:
-            commands = parse_input(command.readline().strip())
-            if not commands:
+            command = command.readline().strip()
+            if not command:
                 print(end=Settings.prompt, flush=True)
                 continue
-            for command in commands:
-                cmd, *args = command
-                if not cmd:
-                    continue
-                if cmd in CMDS:
-                    CMDS[cmd](*args)
+            cmd, *args = command.split()
+            if is_valid_cmd(cmd, CMDS) == "macro":
+                add_macro(*args, macros=macros)
+                print(end=Settings.prompt, flush=True)
+                continue
+            commands = " ".join((cmd, *args)).split(";")
+            for cmd in commands:
+                cmd = cmd.strip()
+                args = None
+                if len(cmd.split()) > 1:
+                    cmd, *args = cmd.split()
+                if is_valid_cmd(cmd, CMDS):
+                    if args:
+                        parse_and_execute(f"{cmd} {' '.join(args)}", CMDS)
+                    else:
+                        parse_and_execute(cmd, CMDS)
+                elif mcr := is_valid_cmd(cmd, macros):
+                    parse_and_execute(macros[mcr], CMDS)
                 else:
-                    autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+                    print("Invalid command")
             print(end=Settings.prompt, flush=True)
             continue
 

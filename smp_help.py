@@ -129,4 +129,14 @@ to see detailed help.""",
 With no arguments, prints out your config.
 `config generate` generates a default config in ~/.config/smp/smp.conf.
 WARNING: This will overwrite your existing config if you have one.""",
+    "macro": """Usage: macro <name> <*args>
+Creates a new macro called `name`, that when invoked, expands
+to `args`. You can use this to combine multiple commands into one,
+
+e.g. macro my-macro queue load my-playlist; queue shuffle; queue play
+
+Note that semicolons are required to separate commands. You can also
+add arguments after macros as if they were normal commands, e.g.
+ macro add queue add
+ add my-song -> queue add my-song""",
 }

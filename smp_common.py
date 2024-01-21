@@ -26,11 +26,12 @@ def gen_files():
     )
 
 
+
+
 def autocomplete(ac_level, cmd, cmd_set, *args):
     if ac_level == 0:
         print("Autocomplete is disabled")
         return
-
     commands = [c for c in cmd_set if c.startswith(cmd)]
     if len(commands) == 1:
         cmd_set[commands[0]](*args)
