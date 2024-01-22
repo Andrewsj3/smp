@@ -10,9 +10,11 @@ python -m venv venv
 source ./venv/bin/activate
 python -m pip install -r requirements.txt
 ```
-Optional:
+Optional (Unix only):
 ```sh
 chmod +x smp
 ```
-> [!WARNING]
-> This software does not properly work on Windows yet. Queueing songs is not supported.
+
+## Help
+smp has an interactive help session that can be accessed by typing `help` while in smp. From here you can get a list of commands and detailed explanations.
+

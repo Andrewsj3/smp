@@ -12,7 +12,7 @@ def config(*args, generate=False):
             os.mkdir(CONFIG_PATH.parent)
         if CONFIG_PATH.exists():
             os.remove(CONFIG_PATH)
-        with open(CONFIG_PATH, "x") as f:
+        with open(CONFIG_PATH, "x", encoding="utf-8") as f:
             f.write(
                 """[General]
 # Path to all your songs and playlists

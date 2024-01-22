@@ -4,7 +4,7 @@ import os
 import re
 from pathlib import Path
 from select import select  # for non-blocking input, Unix only
-from sys import stdin
+from sys import stdin, platform
 import smp_queue as q
 from smp_queue import Player, queue
 from smp_common import *
@@ -62,18 +62,39 @@ def is_valid_cmd(cmd, cmd_set):
     if len(commands) == 1:
         return commands[0]
 
-
-def input_entered(prompt):
+if platform == "win32":
+    def input_entered(string=[""]):
+        import msvcrt
+        if msvcrt.kbhit():
+            ch = msvcrt.getch()
+            if ch in (b"\x00", b'\xe0'):
+                msvcrt.getch()
+            if ch == b'\x08':
+                if len(string[0]) != 0:
+                    string[0] = string[0][:-1]
+                    print(end='\b \b', flush=True)
+            elif ch != b'\r':
+                string[0] += ch.decode()
+                print(end=ch.decode(), flush=True)
+            else:
+                res = string[0]
+                print()
+                if not res:
+                    print(end=Settings.prompt, flush=True)
+                string[0] = ""
+                return res
+else:
+    def input_entered():
     # Check if user has entered a newline
     # and return stdin if true
     # (from docs)
     # IMPORTANT NOTICE
     # On Windows, only sockets are supported; on Unix, all file
     # descriptors can be used.
-    stdin_is_ready = select([stdin], [], [], 0)[0]
-    if stdin_is_ready:
-        return stdin_is_ready[0]
-    return False
+        stdin_is_ready = select([stdin], [], [], 0)[0]
+        if stdin_is_ready:
+            return stdin_is_ready[0].readline().strip()
+        return False
 
 
 def clamp(num, low, high):
@@ -356,7 +377,6 @@ def main():
     macros = {}
     Settings.read_config(parser.get_config(CONFIG_PATH))
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
-    songs_last_modified = Settings.music_dir.stat().st_mtime
     mixer.init()
     failed_calls = 0
     print(end=Settings.prompt, flush=True)
@@ -381,10 +401,9 @@ def main():
         # Drastically reduces CPU usage with almost no performance hit
         if q.should_advance():
             q.play()
-        if not (command := input_entered(Settings.prompt)):
+        if not (command := input_entered()):
             continue
         else:
-            command = command.readline().strip()
             if not command:
                 print(end=Settings.prompt, flush=True)
                 continue
@@ -414,3 +433,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
