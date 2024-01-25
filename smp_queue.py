@@ -150,6 +150,8 @@ def play():
         return
     if Player.q_idx == len(Player.queue):
         Player.q_idx = 0
+        if Player.q_should_shuffle:
+            randomize()
     Player.playing_queue = True
     if not Player.q_should_shuffle:
         Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
@@ -167,10 +169,6 @@ def play():
     music.play()
     if Player.q_idx < len(Player.queue):
         Player.q_idx += 1
-    else:
-        if not Player.q_should_loop:
-            Player.playing_queue = False
-        Player.q_idx = 0
 
 
 def save(file):
@@ -191,13 +189,12 @@ def load(file):
 
 def remove(*args):
     for arg in args:
-        if arg in Player.queue:
+        if arg in Player.queue or (arg := ac_songs(Settings.autocomplete, arg)) in Player.queue:
+            idx = Player.queue.index(arg)
             Player.queue.remove(arg)
             Player.shuffled_queue.remove(arg)
-        else:
-            if (song := ac_songs(Settings.autocomplete, arg)) in Player.queue:
-                Player.queue.remove(song)
-                Player.shuffled_queue.remove(song)
+            if Player.playing_queue and idx < Player.q_idx:
+                Player.q_idx -= 1
 
 
 def swap(*args):
@@ -214,7 +211,7 @@ def swap(*args):
             )
         else:
             first = ac_songs(Settings.autocomplete, first)
-            second = ac_songs(Setting.autocomplete, second)
+            second = ac_songs(Settings.autocomplete, second)
             if first and second:
                 idx1, idx2 = (
                     Player.queue.index(first),
