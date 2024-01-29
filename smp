@@ -17,7 +17,6 @@ import pygame
 from pygame import mixer
 from pygame.mixer import music
 
-
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
@@ -29,6 +28,7 @@ CMDS = {
     "loop": lambda *args: loop(),
     "time": lambda *args: time(),
     "rewind": lambda *args: seek_relative(*args),
+    "repeat": lambda *args: repeat(*args),
     "forward": lambda *args: seek_relative(*args, forward=True),
     "seek": lambda *args: seek_absolute(*args),
     "pause": lambda *args: pause(),
@@ -62,18 +62,36 @@ def is_valid_cmd(cmd, cmd_set):
     if len(commands) == 1:
         return commands[0]
 
+
+def should_repeat():
+    if not (music.get_busy() or Player.should_pause) and Player.repeats:
+        Player.repeats -= 1
+        return True
+
+
+def repeat(*args):
+    if not args:
+        Player.repeats = 1
+        return
+    repeats = type_converter(args[0], int, "Repeats must be an integer")
+    if not isinstance(repeats, int) or repeats < 1:
+        return
+    Player.repeats = repeats
+
+
 if platform == "win32":
+    import msvcrt
+
     def input_entered(string=[""]):
-        import msvcrt
         if msvcrt.kbhit():
             ch = msvcrt.getch()
-            if ch in (b"\x00", b'\xe0'):
+            if ch in (b"\x00", b"\xe0"):
                 msvcrt.getch()
-            if ch == b'\x08':
+            if ch == b"\x08":
                 if len(string[0]) != 0:
                     string[0] = string[0][:-1]
-                    print(end='\b \b', flush=True)
-            elif ch != b'\r':
+                    print(end="\b \b", flush=True)
+            elif ch != b"\r":
                 string[0] += ch.decode()
                 print(end=ch.decode(), flush=True)
             else:
@@ -84,13 +102,14 @@ if platform == "win32":
                 string[0] = ""
                 return res
 else:
+
     def input_entered():
-    # Check if user has entered a newline
-    # and return stdin if true
-    # (from docs)
-    # IMPORTANT NOTICE
-    # On Windows, only sockets are supported; on Unix, all file
-    # descriptors can be used.
+        # Check if user has entered a newline
+        # and return stdin if true
+        # (from docs)
+        # IMPORTANT NOTICE
+        # On Windows, only sockets are supported; on Unix, all file
+        # descriptors can be used.
         stdin_is_ready = select([stdin], [], [], 0)[0]
         if stdin_is_ready:
             return stdin_is_ready[0].readline().strip()
@@ -164,6 +183,8 @@ def play(*args):
         else:
             Player.playing_queue = False
             music.load(Settings.music_dir / song)
+    if Settings.music_dir / song != Player.cur_song:
+        Player.repeats = 0
     Player.cur_song = Settings.music_dir / song
     music.set_volume(Player.volume / 100)
     music.play(Player.loops)
@@ -399,14 +420,17 @@ def main():
             cfg_last_modified = cfg_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
+        if should_repeat():
+            play(Player.cur_song)
         if q.should_advance():
             q.play()
-        if not (command := input_entered()):
+        command = input_entered()
+        if command is False:
+            continue
+        elif not command:
+            print(end=Settings.prompt, flush=True)
             continue
         else:
-            if not command:
-                print(end=Settings.prompt, flush=True)
-                continue
             cmd, *args = command.split()
             if is_valid_cmd(cmd, CMDS) == "macro":
                 add_macro(*args, macros=macros)
@@ -415,7 +439,6 @@ def main():
             commands = " ".join((cmd, *args)).split(";")
             for cmd in commands:
                 cmd = cmd.strip()
-                args = None
                 if len(cmd.split()) > 1:
                     cmd, *args = cmd.split()
                 if is_valid_cmd(cmd, CMDS):
@@ -426,11 +449,10 @@ def main():
                 elif mcr := is_valid_cmd(cmd, macros):
                     parse_and_execute(macros[mcr], CMDS)
                 else:
-                    print("Invalid command")
+                    autocomplete(Settings.autocomplete, cmd, CMDS, *args)
             print(end=Settings.prompt, flush=True)
             continue
 
 
 if __name__ == "__main__":
     main()
-

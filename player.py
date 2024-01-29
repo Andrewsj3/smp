@@ -5,6 +5,7 @@ class Player:
     # Global settings for the music Player
     volume = Settings.default_volume
     loops = 0
+    repeats = 0
     offset = 0
     duration = 0
     queue = []

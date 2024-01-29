@@ -139,4 +139,9 @@ Note that semicolons are required to separate commands. You can also
 add arguments after macros as if they were normal commands, e.g.
  macro add queue add
  add my-song -> queue add my-song""",
+    "repeat": """Usage: repeat [repeats]
+Repeats the current song `repeats` times, 1 by default. Repeats must
+be a positive integer greater than 0. This command is effective until
+the song is changed. If you are playing a queue, it will not advance
+until the song stops repeating.""",
 }

@@ -84,14 +84,13 @@ def clear():
 def add(*args):
     files = gen_files()
     for arg in args:
-        if arg in files:
-            Player.queue.append(arg)
-            Player.shuffled_queue.append(arg)
-        else:
-            file = ac_songs(Settings.autocomplete, arg)
-            if file:
-                Player.queue.append(file)
-                Player.shuffled_queue.append(file)
+        song = ac_songs(Settings.autocomplete, arg)
+        if song:
+            if song in Player.queue:
+                print("That song is already in the queue")
+                return
+            Player.queue.append(song)
+            Player.shuffled_queue.append(song)
 
 
 def qnext():
@@ -189,12 +188,15 @@ def load(file):
 
 def remove(*args):
     for arg in args:
-        if arg in Player.queue or (arg := ac_songs(Settings.autocomplete, arg)) in Player.queue:
+        arg = ac_songs(Settings.autocomplete, arg)
+        if arg in Player.queue:
             idx = Player.queue.index(arg)
             Player.queue.remove(arg)
             Player.shuffled_queue.remove(arg)
             if Player.playing_queue and idx < Player.q_idx:
                 Player.q_idx -= 1
+        else:
+            print("That song is not in the queue")
 
 
 def swap(*args):
