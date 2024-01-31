@@ -1,5 +1,6 @@
 import configparser
-from pathlib import Path
+
+
 def get_config(cfg_path):
     settings = {}
     parser = configparser.ConfigParser()
@@ -9,4 +10,3 @@ def get_config(cfg_path):
             settings[value] = parser[section][value].strip("\'\"")
 
     return settings
-

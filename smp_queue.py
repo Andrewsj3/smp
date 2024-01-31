@@ -5,7 +5,7 @@ import csv
 import mutagen
 from player import Player
 from settings import Settings
-from smp_common import *
+from smp_common import autocomplete, timestamp, ac_songs
 
 
 def should_advance():
@@ -82,7 +82,6 @@ def clear():
 
 
 def add(*args):
-    files = gen_files()
     for arg in args:
         song = ac_songs(Settings.autocomplete, arg)
         if song:

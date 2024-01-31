@@ -63,17 +63,17 @@ directory, overwriting it if it already exists.""",
     "load": """Usage: queue load <filename>
 Loads the songs in <filename> into the current queue.""",
     "status": """Shows the current song being played, the total
-length of the playlist, and total time elapsed as a timestamp 
+length of the playlist, and total time elapsed as a timestamp
 and a percentage. Only works if the queue is playing (paused is ok).""",
 }
 CMDS = {
     "play": """Usage: play <song> [volume] [loops]
 Looks for a song in the music directory (default ~/music).
 If you have autocomplete enabled, you don't even have to type
-out the whole song. 
+out the whole song.
 
 Specifying `volume` changes the `volume` for this song
-and subsequent songs. 
+and subsequent songs.
 
 Specifying `loops` replays the song that many times
 with -1 looping forever.""",
@@ -81,7 +81,7 @@ with -1 looping forever.""",
     "volume": """Usage: volume [level]
 With no arguments, prints current volume percentage.
 
-Otherwise, sets global volume to `level`. 
+Otherwise, sets global volume to `level`.
 Note that `level` must be between 0 and 100""",
     "ls": """Usage: ls [-s <substr>] [-n <range>]
 With no arguments, lists all songs in the music directory.

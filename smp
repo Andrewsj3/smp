@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import glob
 import os
 import re
 from pathlib import Path
@@ -7,9 +6,10 @@ from select import select  # for non-blocking input, Unix only
 from sys import stdin, platform
 import smp_queue as q
 from smp_queue import Player, queue
-from smp_common import *
+from smp_common import timestamp, gen_files, ac_songs, autocomplete
+import parser
 from smp_help import ihelp
-from settings import *
+from settings import Settings, config, reload_cfg
 from time import sleep
 
 import mutagen  # for getting song duration
@@ -188,7 +188,6 @@ def play(*args):
     Player.cur_song = Settings.music_dir / song
     music.set_volume(Player.volume / 100)
     music.play(Player.loops)
-    should_pause = False
     file = mutagen.File(Player.cur_song)
     Player.duration = file.info.length
 
@@ -204,9 +203,12 @@ def volume(*args):
 
 
 def ls(*args):
-    files = gen_files()
-    files.sort()
-    humanized = [song[: song.index(".")] for song in files]
+    ls_args = _ls_collect_args(*args)
+    songs = _ls_parse_args(ls_args)
+    print(Settings.ls_sep.join(songs))
+
+
+def _ls_collect_args(*args):
     ls_args = []
     arg_str = ""
     for arg in args:
@@ -226,14 +228,20 @@ def ls(*args):
     if len(ls_args) % 2 != 0:
         print("Malformed arguments")
         return
+    return ls_args
+
+
+def _ls_parse_args(ls_args):
+    files = gen_files()
+    files.sort()
+    humanized = [song[: song.index(".")] for song in files]
     i_arg = iter(ls_args)
     while True:
-        idxs = slice(len(humanized))
         try:
             flag, val = next(i_arg), next(i_arg)
-            flag = flag.lower()
         except StopIteration:
             break
+        flag = flag.lower()
         if flag not in ("-s", "-n"):
             print(f"Invalid flag {flag}")
             continue
@@ -253,7 +261,7 @@ def ls(*args):
                 found = True
             humanized = tmp
             del tmp
-    print(Settings.ls_sep.join(humanized))
+    return humanized
 
 
 def loop():
@@ -359,7 +367,7 @@ def stop():
 
 def unpause():
     music.unpause()
-    should_pause = False
+    Player.should_pause = False
 
 
 def smp_exit():
@@ -394,6 +402,31 @@ def parse_and_execute(cmd, cmd_set):
             autocomplete(Settings.autocomplete, cmd, cmd_set, *args)
 
 
+def stat_config(cfg_last_modified):
+    cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+    if cfg_mtime != cfg_last_modified:
+        reload_cfg(startup=False)  # Hot reloading
+        return cfg_mtime
+    return cfg_last_modified
+
+
+def exec_commands(commands, macros):
+    for cmd in commands:
+        args = tuple()
+        cmd = cmd.strip()
+        if len(cmd.split()) > 1:
+            cmd, *args = cmd.split()
+        if is_valid_cmd(cmd, CMDS):
+            if args:
+                parse_and_execute(f"{cmd} {' '.join(args)}", CMDS)
+            else:
+                parse_and_execute(cmd, CMDS)
+        elif mcr := is_valid_cmd(cmd, macros):
+            parse_and_execute(macros[mcr], CMDS)
+        else:
+            autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+
+
 def main():
     macros = {}
     Settings.read_config(parser.get_config(CONFIG_PATH))
@@ -403,7 +436,7 @@ def main():
     print(end=Settings.prompt, flush=True)
     while True:
         try:
-            cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+            cfg_last_modified = stat_config(cfg_last_modified)
             failed_calls = 0
         except FileNotFoundError:
             failed_calls += 1
@@ -415,9 +448,6 @@ def main():
                 # Other times it really doesn't exist, likely because
                 # it's been moved or deleted
             continue
-        if cfg_mtime != cfg_last_modified:
-            reload_cfg(startup=False)  # Hot reloading
-            cfg_last_modified = cfg_mtime
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
         if should_repeat():
@@ -437,19 +467,7 @@ def main():
                 print(end=Settings.prompt, flush=True)
                 continue
             commands = " ".join((cmd, *args)).split(";")
-            for cmd in commands:
-                cmd = cmd.strip()
-                if len(cmd.split()) > 1:
-                    cmd, *args = cmd.split()
-                if is_valid_cmd(cmd, CMDS):
-                    if args:
-                        parse_and_execute(f"{cmd} {' '.join(args)}", CMDS)
-                    else:
-                        parse_and_execute(cmd, CMDS)
-                elif mcr := is_valid_cmd(cmd, macros):
-                    parse_and_execute(macros[mcr], CMDS)
-                else:
-                    autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+            exec_commands(commands, macros)
             print(end=Settings.prompt, flush=True)
             continue
 

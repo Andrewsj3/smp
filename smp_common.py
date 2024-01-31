@@ -1,7 +1,6 @@
 import glob
 from pathlib import Path
 from settings import Settings
-import parser
 
 
 def flatten(lst):
@@ -24,8 +23,6 @@ def gen_files():
             ),
         )
     )
-
-
 
 
 def autocomplete(ac_level, cmd, cmd_set, *args):
