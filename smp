@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-import os
 import re
+import csv
 from pathlib import Path
 from select import select  # for non-blocking input, Unix only
 from sys import stdin, platform
@@ -20,27 +20,29 @@ from pygame.mixer import music
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
-    "play": lambda *args: play(*args),
-    "stop": lambda *args: stop(),
-    "volume": lambda *args: volume(*args),
-    "ls": lambda *args: ls(*args),
-    "list": lambda *args: ls(*args),
-    "loop": lambda *args: loop(),
-    "time": lambda *args: time(),
-    "rewind": lambda *args: seek_relative(*args),
-    "repeat": lambda *args: repeat(*args),
-    "forward": lambda *args: seek_relative(*args, forward=True),
-    "seek": lambda *args: seek_absolute(*args),
-    "pause": lambda *args: pause(),
-    "unpause": lambda *args: unpause(),
-    "queue": lambda *args: queue(*args),
-    "macro": lambda *args: add_macro(*args),
-    "help": lambda *args: ihelp(*args),
-    "exit": lambda *args: smp_exit(),
-    "quit": lambda *args: smp_exit(),
     "config": lambda *args: config(*args),
     "eval": lambda arg: print(eval(arg)),
     # For debug only, exceptions are not handled
+    "exit": lambda *args: smp_exit(),
+    "delete": lambda *args: delete(*args),
+    "forward": lambda *args: seek_relative(*args, forward=True),
+    "help": lambda *args: ihelp(*args),
+    "list": lambda *args: ls(*args),
+    "loop": lambda *args: loop(),
+    "ls": lambda *args: ls(*args),
+    "macro": lambda *args: add_macro(*args),
+    "pause": lambda *args: pause(),
+    "play": lambda *args: play(*args),
+    "queue": lambda *args: queue(*args),
+    "quit": lambda *args: smp_exit(),
+    "rename": lambda *args: rename(*args),
+    "repeat": lambda *args: repeat(*args),
+    "rewind": lambda *args: seek_relative(*args),
+    "seek": lambda *args: seek_absolute(*args),
+    "stop": lambda *args: stop(),
+    "time": lambda *args: time(),
+    "unpause": lambda *args: unpause(),
+    "volume": lambda *args: volume(*args),
 }
 
 
@@ -403,7 +405,7 @@ def parse_and_execute(cmd, cmd_set):
 
 
 def stat_config(cfg_last_modified):
-    cfg_mtime = os.stat(CONFIG_PATH).st_mtime
+    cfg_mtime = CONFIG_PATH.stat().st_mtime
     if cfg_mtime != cfg_last_modified:
         reload_cfg(startup=False)  # Hot reloading
         return cfg_mtime
@@ -425,6 +427,58 @@ def exec_commands(commands, macros):
             parse_and_execute(macros[mcr], CMDS)
         else:
             autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+
+
+def rename(*args):
+    if len(args) % 2 != 0:
+        print("Expected an even number of arguments")
+        return
+    for i in range(0, len(args), 2):
+        first, second = args[i], args[i+1]
+        first = ac_songs(Settings.autocomplete, first)
+        if not first:
+            continue
+        first_path = Settings.music_dir / first
+        sfx = first_path.suffix
+        second_path = (Settings.music_dir /
+                       second).with_suffix(sfx)
+        first_path.rename(second_path)
+        for file in Settings.playlist_dir.glob("*.csv"):
+            with open(file, 'r', newline="") as f:
+                reader = csv.reader(f, delimiter=",")
+                queue = next(iter(reader))
+            if first in queue:
+                queue[queue.index(first)] = second_path.name
+                tmp = Player.queue.copy()
+                Player.queue = queue
+                q.save(file.with_suffix("").name)
+                Player.queue = tmp
+                del tmp
+
+
+def delete(*args):
+    if not args:
+        print("Expected at least one song")
+        return
+    for arg in args:
+        song = ac_songs(Settings.autocomplete, arg)
+        if not song:
+            continue
+        song_path = Settings.music_dir / song
+        for file in Settings.playlist_dir.glob("*.csv"):
+            with open(file, 'r', newline="") as f:
+                reader = csv.reader(f, delimiter=",")
+                queue = next(iter(reader))
+            if song in queue:
+                queue.remove(song)
+                tmp = Player.queue
+                Player.queue = queue
+                q.save(file.with_suffix("").name)
+                Player.queue = tmp
+                del tmp
+        if song in Player.queue:
+            parse_and_execute(f"queue remove {song}", CMDS)
+    song_path.unlink()
 
 
 def main():

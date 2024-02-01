@@ -144,4 +144,15 @@ Repeats the current song `repeats` times, 1 by default. Repeats must
 be a positive integer greater than 0. This command is effective until
 the song is changed. If you are playing a queue, it will not advance
 until the song stops repeating.""",
+    "delete": """Usage: delete <*songs>
+For each song in `songs`, deletes the song from the music directory
+and removes it from all playlists it's in. Use this over your operating
+system's tools for removing files or your playlists may break.""",
+    "rename": """Usage: rename <song> <new_name>
+Renames `song` to `new_name`, and applies this change to all playlists
+it's in. Specifying the extension is not necessary, as the renamed song
+will keep the existing extension. Use this over your operating system's
+tools for renaming files or your playlists may break.
+You can do this for as many songs as you like, e.g.
+rename song1 name1 song2 name2 song3 name3 ...""",
 }
