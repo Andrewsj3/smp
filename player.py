@@ -9,6 +9,7 @@ class Player:
     offset = 0
     duration = 0
     queue = []
+    macros = {}
     cur_song = ""
     shuffled_queue = []
     playing_queue = False

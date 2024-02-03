@@ -6,6 +6,7 @@ import mutagen
 from player import Player
 from settings import Settings
 from smp_common import autocomplete, timestamp, ac_songs
+from smp_help import ihelp
 
 
 def should_advance():
@@ -82,6 +83,9 @@ def clear():
 
 
 def add(*args):
+    if not args:
+        ihelp("queue add")
+        return
     for arg in args:
         song = ac_songs(Settings.autocomplete, arg)
         if song:

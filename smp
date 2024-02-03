@@ -10,6 +10,8 @@ from smp_common import timestamp, gen_files, ac_songs, autocomplete
 import parser
 from smp_help import ihelp
 from settings import Settings, config, reload_cfg
+import macros
+from macros import macro
 from time import sleep
 
 import mutagen  # for getting song duration
@@ -30,7 +32,7 @@ CMDS = {
     "list": lambda *args: ls(*args),
     "loop": lambda *args: loop(),
     "ls": lambda *args: ls(*args),
-    "macro": lambda *args: add_macro(*args),
+    "macro": lambda *args: macro(*args),
     "pause": lambda *args: pause(),
     "play": lambda *args: play(*args),
     "queue": lambda *args: queue(*args),
@@ -44,19 +46,6 @@ CMDS = {
     "unpause": lambda *args: unpause(),
     "volume": lambda *args: volume(*args),
 }
-
-
-def add_macro(*args, macros):
-    if not args:
-        return
-    mcr, *args = args
-    if mcr in CMDS:
-        print("Macros can't be named existing commands")
-        return
-    if not args:
-        print("Macro needs at least one argument")
-        return
-    macros[mcr] = " ".join(args)
 
 
 def is_valid_cmd(cmd, cmd_set):
@@ -157,7 +146,7 @@ def parse_input(string):
 
 def play(*args):
     if not args:
-        print("expected at least one argument")
+        ihelp("play")
         return
     Player.loops = 0
     Player.offset = 0
@@ -206,6 +195,8 @@ def volume(*args):
 
 def ls(*args):
     ls_args = _ls_collect_args(*args)
+    if ls_args is None:
+        return
     songs = _ls_parse_args(ls_args)
     print(Settings.ls_sep.join(songs))
 
@@ -301,7 +292,10 @@ def time():
 
 def seek_relative(*args, forward=False):
     if not args:
-        print("Expected either a number in seconds or a timestamp")
+        if forward:
+            ihelp("forward")
+        else:
+            ihelp("rewind")
         return
     if not Player.duration:
         print("Nothing playing")
@@ -331,7 +325,7 @@ def seek_relative(*args, forward=False):
 
 def seek_absolute(*args):
     if not args:
-        print("Expected either a number in seconds or a timestamp")
+        ihelp("seek")
         return
     if not Player.duration:
         print("Nothing playing")
@@ -424,12 +418,15 @@ def exec_commands(commands, macros):
             else:
                 parse_and_execute(cmd, CMDS)
         elif mcr := is_valid_cmd(cmd, macros):
-            parse_and_execute(macros[mcr], CMDS)
+            parse_and_execute(f"{macros[mcr]} {' '.join(args)}", CMDS)
         else:
             autocomplete(Settings.autocomplete, cmd, CMDS, *args)
 
 
 def rename(*args):
+    if not args:
+        ihelp("rename")
+        return
     if len(args) % 2 != 0:
         print("Expected an even number of arguments")
         return
@@ -458,7 +455,7 @@ def rename(*args):
 
 def delete(*args):
     if not args:
-        print("Expected at least one song")
+        ihelp("delete")
         return
     for arg in args:
         song = ac_songs(Settings.autocomplete, arg)
@@ -482,7 +479,7 @@ def delete(*args):
 
 
 def main():
-    macros = {}
+    Player.macros = macros.load_macros()
     Settings.read_config(parser.get_config(CONFIG_PATH))
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
     mixer.init()
@@ -516,12 +513,8 @@ def main():
             continue
         else:
             cmd, *args = command.split()
-            if is_valid_cmd(cmd, CMDS) == "macro":
-                add_macro(*args, macros=macros)
-                print(end=Settings.prompt, flush=True)
-                continue
             commands = " ".join((cmd, *args)).split(";")
-            exec_commands(commands, macros)
+            exec_commands(commands, Player.macros)
             print(end=Settings.prompt, flush=True)
             continue
 

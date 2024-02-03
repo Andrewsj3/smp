@@ -11,6 +11,7 @@ def ihelp(*topic):
     print("Type `quit` or Ctrl-D to return to smp")
     print("Type `list` to see the list of available commands")
     print("Type `list queue` to see the list of queue subcommands")
+    print("Type `list macro` to see the list of macro subcommands")
     while True:
         try:
             name = input(">>> ").lower().strip()
@@ -28,10 +29,25 @@ def ihelp(*topic):
         elif name.startswith("queue") and len(name.split()) == 2:
             _, subcmd = name.split()
             print(Q_CMDS.get(subcmd, "No help for that"))
+        elif name == "list macro":
+            print("\n".join(M_CMDS))
+        elif name.startswith("macro") and len(name.split()) == 2:
+            _, subcmd = name.split()
+            print(M_CMDS.get(subcmd, "No help for that"))
         else:
             print(CMDS.get(name, "No help for that"))
 
 
+M_CMDS = {
+    "add": """Usage: macro add <name> <*args>
+Creates a macro called `name` which expands to `args`
+when invoked. When creating a macro that expands to
+multiple commands, remember that they must be separated
+with a semicolon.""",
+    "save": """Usage: macro save <name>
+Saves macro `name` to ~/.config/smp/macros.json.
+This allows you to use this macro across sessions."""
+}
 Q_CMDS = {
     "add": """Usage: queue add <*songs>
 Adds songs to the end of the queue. Every argument after `add`
@@ -129,16 +145,12 @@ to see detailed help.""",
 With no arguments, prints out your config.
 `config generate` generates a default config in ~/.config/smp/smp.conf.
 WARNING: This will overwrite your existing config if you have one.""",
-    "macro": """Usage: macro <name> <*args>
-Creates a new macro called `name`, that when invoked, expands
-to `args`. You can use this to combine multiple commands into one,
-
-e.g. macro my-macro queue load my-playlist; queue shuffle; queue play
-
-Note that semicolons are required to separate commands. You can also
-add arguments after macros as if they were normal commands, e.g.
- macro add queue add
- add my-song -> queue add my-song""",
+    "macro": """Usage: macro [subcommand] [*args]
+Allows you to interact with the macro system. Macros allow you to
+condense long commands or combine multiple commands into one.
+If you don't specify a subcommand, it lists all created macros.
+See `list macro` to see all subcommands or `macro <subcommand>
+to see detailed help.""",
     "repeat": """Usage: repeat [repeats]
 Repeats the current song `repeats` times, 1 by default. Repeats must
 be a positive integer greater than 0. This command is effective until
