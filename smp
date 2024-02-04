@@ -63,11 +63,13 @@ def should_repeat():
 def repeat(*args):
     if not args:
         Player.repeats = 1
+        print(f"{Player.cur_song} will be repeated {Player.repeats} times.")
         return
     repeats = type_converter(args[0], int, "Repeats must be an integer")
     if not isinstance(repeats, int) or repeats < 1:
         return
     Player.repeats = repeats
+    print(f"{Player.cur_song} will be repeated {Player.repeats} times.")
 
 
 if platform == "win32":
@@ -92,6 +94,7 @@ if platform == "win32":
                     print(end=Settings.prompt, flush=True)
                 string[0] = ""
                 return res
+        return False  # Fix windows bug where prompt would continually print
 else:
 
     def input_entered():
@@ -133,10 +136,9 @@ def parse_input(string):
             elif ch == " ":
                 if quoted:
                     accumulator += ch
-                else:
-                    if accumulator:
-                        out[i].append(accumulator.strip())
-                        accumulator = ""
+                elif accumulator:
+                    out[i].append(accumulator.strip())
+                    accumulator = ""
             else:
                 accumulator += ch
         out[i].append(accumulator.strip())
@@ -407,20 +409,17 @@ def stat_config(cfg_last_modified):
 
 
 def exec_commands(commands, macros):
+    args_list = []
     for cmd in commands:
-        args = tuple()
-        cmd = cmd.strip()
-        if len(cmd.split()) > 1:
-            cmd, *args = cmd.split()
-        if is_valid_cmd(cmd, CMDS):
-            if args:
-                parse_and_execute(f"{cmd} {' '.join(args)}", CMDS)
-            else:
-                parse_and_execute(cmd, CMDS)
-        elif mcr := is_valid_cmd(cmd, macros):
-            parse_and_execute(f"{macros[mcr]} {' '.join(args)}", CMDS)
+        if mcr := is_valid_cmd(cmd, macros):
+            for cmd in macros[mcr].split(';'):
+                if cmd.strip() in macros:
+                    args_list.append(macros[cmd.strip()])
+                else:
+                    args_list.append(cmd.strip())
         else:
-            autocomplete(Settings.autocomplete, cmd, CMDS, *args)
+            args_list.append(cmd.strip())
+    parse_and_execute("; ".join(args_list), CMDS)
 
 
 def rename(*args):
@@ -510,13 +509,15 @@ def main():
             continue
         elif not command:
             print(end=Settings.prompt, flush=True)
-            continue
         else:
             cmd, *args = command.split()
-            commands = " ".join((cmd, *args)).split(";")
-            exec_commands(commands, Player.macros)
+            if is_valid_cmd(cmd, CMDS) == "macro":
+                CMDS["macro"](*args)  # Special case as splitting by ';' breaks
+                # add_macro
+            else:
+                commands = " ".join((cmd, *args)).split(";")
+                exec_commands(commands, Player.macros)
             print(end=Settings.prompt, flush=True)
-            continue
 
 
 if __name__ == "__main__":

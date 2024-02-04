@@ -1,5 +1,4 @@
 from pathlib import Path
-from smp_help import ihelp
 from smp_common import autocomplete
 import json
 from settings import Settings
@@ -81,8 +80,8 @@ def save_macro(*args):
             "This macro already exists. "
             "Do you want to replace it? (y/n) ").lower()
         if replace == 'y':
-            saved_macros[mcr] = " ".join(args)
+            saved_macros[mcr] = Player.macros[mcr]
     else:
         saved_macros[mcr] = Player.macros[mcr]
-        with open(MACROS_PATH, 'w') as f:
-            json.dump(saved_macros, f)
+    with open(MACROS_PATH, 'w') as f:
+        json.dump(saved_macros, f)
