@@ -4,6 +4,9 @@ def ihelp(*topic):
         if topic.startswith("queue") and len(topic.split()) == 2:
             _, subcmd = topic.split()
             print(Q_CMDS.get(subcmd, "No help for that"))
+        elif topic.startswith("macro") and len(topic.split()) == 2:
+            _, subcmd = topic.split()
+            print(M_CMDS.get(subcmd, "No help for that"))
         else:
             print(CMDS.get(topic, "No help for that"))
         return
@@ -44,9 +47,15 @@ Creates a macro called `name` which expands to `args`
 when invoked. When creating a macro that expands to
 multiple commands, remember that they must be separated
 with a semicolon.""",
-    "save": """Usage: macro save <name>
-Saves macro `name` to ~/.config/smp/macros.json.
-This allows you to use this macro across sessions."""
+    "save": """Usage: macro save <*args>
+For each macro in `args`, attempts to save the macro
+in ~/.config/smp/macros.json. Will fail if the macro
+does not exist.
+This allows you to use this macro across sessions.""",
+    "delete": """Usage: macro delete <*args>
+For each macro in `args`, attempts to delete the macro.
+If it is present in ~/.config/smp/macros.json, it is
+also deleted there."""
 }
 Q_CMDS = {
     "add": """Usage: queue add <*songs>

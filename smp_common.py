@@ -1,4 +1,3 @@
-import glob
 from pathlib import Path
 from settings import Settings
 
@@ -17,7 +16,7 @@ def gen_files():
             lambda f: Path(f).name,
             flatten(
                 [
-                    glob.glob(f"{Settings.music_dir}/*.{ext}")
+                    list(Settings.music_dir.glob(f"*.{ext}"))
                     for ext in SUPPORTED_TYPES
                 ]
             ),

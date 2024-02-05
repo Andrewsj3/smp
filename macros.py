@@ -3,10 +3,12 @@ from smp_common import autocomplete
 import json
 from settings import Settings
 from player import Player
-MACROS_PATH = Path(r"~/.config/smp/macros.json").expanduser()
+from smp_help import ihelp
+MACROS_PATH = Path("~/.config/smp/macros.json").expanduser()
 M_CMDS = {
     "add": lambda *args: add_macro(*args),
-    "save": lambda *args: save_macro(*args)
+    "save": lambda *args: save_macro(*args),
+    "delete": lambda *args: del_macro(*args)
 }
 
 CMDS = {
@@ -59,6 +61,7 @@ def load_macros():
 
 def add_macro(*args):
     if not args:
+        ihelp("macro add")
         return
     mcr, *args = args
     if mcr in CMDS:
@@ -70,18 +73,34 @@ def add_macro(*args):
     Player.macros[mcr] = " ".join(args)
 
 
+def del_macro(*args):
+    saved_macros = load_macros()
+    if not args:
+        ihelp("macro delete")
+        return
+    for arg in args:
+        if arg in Player.macros:
+            del Player.macros[arg]
+            if arg in saved_macros:
+                del saved_macros[arg]
+        else:
+            print("Macro not found")
+    with open(MACROS_PATH, 'w') as f:
+        json.dump(saved_macros, f)
+
+
 def save_macro(*args):
     saved_macros = load_macros()
     if not args:
         return
-    mcr, *_ = args
-    if mcr in saved_macros:
-        replace = input(
-            "This macro already exists. "
-            "Do you want to replace it? (y/n) ").lower()
-        if replace == 'y':
+    for mcr in args:
+        if mcr in saved_macros:
+            replace = input(
+                "This macro already exists. "
+                "Do you want to replace it? (y/n) ").lower()
+            if replace == 'y':
+                saved_macros[mcr] = Player.macros[mcr]
+        else:
             saved_macros[mcr] = Player.macros[mcr]
-    else:
-        saved_macros[mcr] = Player.macros[mcr]
     with open(MACROS_PATH, 'w') as f:
         json.dump(saved_macros, f)

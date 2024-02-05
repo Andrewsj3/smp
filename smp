@@ -410,11 +410,19 @@ def stat_config(cfg_last_modified):
 
 def exec_commands(commands, macros):
     args_list = []
-    for cmd in commands:
+    commands = " ".join(commands).split(';')
+    commands = list(map(str.strip, commands))
+    for idx, cmd in enumerate(commands):
         if mcr := is_valid_cmd(cmd, macros):
             for cmd in macros[mcr].split(';'):
                 if cmd.strip() in macros:
-                    args_list.append(macros[cmd.strip()])
+                    commands[idx] = macros[cmd.strip()]
+                    # Whenever we see a macro, we need to expand it to actual
+                    # commands, then we feed it back into this function
+                    exec_commands(commands, macros)
+                    # Recursion allows macros of arbitrary depth
+                    # i.e. macros that call other macros that
+                    # call other macros ...
                 else:
                     args_list.append(cmd.strip())
         else:
