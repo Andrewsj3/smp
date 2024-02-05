@@ -100,10 +100,6 @@ else:
     def input_entered():
         # Check if user has entered a newline
         # and return stdin if true
-        # (from docs)
-        # IMPORTANT NOTICE
-        # On Windows, only sockets are supported; on Unix, all file
-        # descriptors can be used.
         stdin_is_ready = select([stdin], [], [], 0)[0]
         if stdin_is_ready:
             return stdin_is_ready[0].readline().strip()
@@ -413,7 +409,10 @@ def exec_commands(commands, macros):
     commands = " ".join(commands).split(';')
     commands = list(map(str.strip, commands))
     for idx, cmd in enumerate(commands):
-        if mcr := is_valid_cmd(cmd, macros):
+        if command := is_valid_cmd(cmd, CMDS):
+            # Make normal commands take precedence over macros
+            args_list.append(command.strip())
+        elif mcr := is_valid_cmd(cmd, macros):
             for cmd in macros[mcr].split(';'):
                 if cmd.strip() in macros:
                     commands[idx] = macros[cmd.strip()]
@@ -425,8 +424,6 @@ def exec_commands(commands, macros):
                     # call other macros ...
                 else:
                     args_list.append(cmd.strip())
-        else:
-            args_list.append(cmd.strip())
     parse_and_execute("; ".join(args_list), CMDS)
 
 
