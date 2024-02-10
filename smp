@@ -61,15 +61,16 @@ def should_repeat():
 
 
 def repeat(*args):
+    cur_song = Path(Player.cur_song).stem
     if not args:
         Player.repeats = 1
-        print(f"{Player.cur_song} will be repeated {Player.repeats} times.")
+        print(f"{cur_song} will be repeated {Player.repeats} times.")
         return
     repeats = type_converter(args[0], int, "Repeats must be an integer")
     if not isinstance(repeats, int) or repeats < 1:
         return
     Player.repeats = repeats
-    print(f"{Player.cur_song} will be repeated {Player.repeats} times.")
+    print(f"{cur_song} will be repeated {Player.repeats} times.")
 
 
 if platform == "win32":
@@ -146,9 +147,6 @@ def play(*args):
     if not args:
         ihelp("play")
         return
-    Player.loops = 0
-    Player.offset = 0
-    Player.should_pause = False
     if len(args) >= 1:
         song = args[0]
     if len(args) >= 2:
@@ -179,6 +177,9 @@ def play(*args):
     music.play(Player.loops)
     file = mutagen.File(Player.cur_song)
     Player.duration = file.info.length
+    Player.loops = 0
+    Player.offset = 0
+    Player.should_pause = False
 
 
 def volume(*args):
@@ -504,7 +505,9 @@ def main():
             continue
         sleep(0.01)
         # Drastically reduces CPU usage with almost no performance hit
-        if should_repeat():
+        if should_repeat() and Player.cur_song:
+            # Fix bug where it would try to play immediately after being
+            # stopped
             play(Player.cur_song)
         if q.should_advance():
             q.play()
@@ -514,7 +517,7 @@ def main():
         elif not command:
             print(end=Settings.prompt, flush=True)
         else:
-            cmd, *args = command.split()
+            cmd, *args = command.lower().split()
             if is_valid_cmd(cmd, CMDS) == "macro":
                 CMDS["macro"](*args)  # Special case as splitting by ';' breaks
                 # add_macro

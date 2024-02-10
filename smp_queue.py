@@ -66,9 +66,21 @@ def status():
             ]
         )
     )
-    cur_song = Path(Player.cur_song).name
-    cur_song = cur_song[: cur_song.rindex(".")]
-    print(f"Currently playing {cur_song}")
+    cur_song = Path(Player.cur_song).stem
+    if len(queue) == 1:
+        prev_song = next_song = "N/A"
+    elif Player.q_idx == 1:
+        prev_song = "N/A"
+        next_song = Path(queue[Player.q_idx]).stem
+    elif Player.q_idx == len(queue):
+        next_song = "N/A"
+        prev_song = Path(queue[Player.q_idx-2]).stem
+    else:
+        next_song = Path(queue[Player.q_idx]).stem
+        prev_song = Path(queue[Player.q_idx-2]).stem
+
+    print(f"Previous song: {prev_song}, next song: {next_song}")
+    print(f"Currently playing {cur_song} ({Player.q_idx}/{len(queue)})")
     print(f"Total length of playlist: {timestamp(total_time)}")
     print(
         f"Total time elapsed: {timestamp(int(elapsed_time + time))} "
