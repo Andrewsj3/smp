@@ -87,9 +87,16 @@ Saves the unshuffled queue to <filename>.csv in the playlists
 directory, overwriting it if it already exists.""",
     "load": """Usage: queue load <filename>
 Loads the songs in <filename> into the current queue.""",
-    "status": """Shows the current song being played, the total
-length of the playlist, and total time elapsed as a timestamp
+    "status": """Shows the previous song and the next song
+(if applicable). Also shows the current song being played,
+its index in the queue, the total length of the playlist,
+and total time elapsed as a timestamp.
 and a percentage. Only works if the queue is playing (paused is ok).""",
+    "find": """Usage: queue find <*songs>
+For each song in songs, prints its position in the queue,
+and the songs that come immediately before and after it (if applicable).
+It also prints the previous 5 songs and the next 5 songs with
+the desired song in blinking text. May not work on all systems."""
 }
 CMDS = {
     "play": """Usage: play <song> [volume] [loops]

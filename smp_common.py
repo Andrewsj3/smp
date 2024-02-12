@@ -93,4 +93,17 @@ def timestamp(num):
     return f"{mins}:{secs:02}"
 
 
+def num_as_position(num):
+    num = str(num)
+    if num.endswith("1"):
+        suffix = "st"
+    elif num.endswith("2"):
+        suffix = "nd"
+    elif num.endswith("3"):
+        suffix = "rd"
+    else:
+        suffix = "th"
+    return num + suffix
+
+
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]

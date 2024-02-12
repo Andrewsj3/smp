@@ -5,7 +5,7 @@ import csv
 import mutagen
 from player import Player
 from settings import Settings
-from smp_common import autocomplete, timestamp, ac_songs
+from smp_common import autocomplete, timestamp, ac_songs, num_as_position
 from smp_help import ihelp
 
 
@@ -33,10 +33,48 @@ def queue(*args):
 def show():
     if Player.q_should_shuffle:
         humanized = [song[: song.index(".")] for song in Player.shuffled_queue]
-        print(", ".join(humanized))
     else:
         humanized = [song[: song.index(".")] for song in Player.queue]
-        print(", ".join(humanized))
+    print(", ".join(humanized))
+
+
+def find(*args):
+    if Player.q_should_shuffle:
+        queue = Player.shuffled_queue
+    else:
+        queue = Player.queue
+    humanized = [song[: song.index(".")] for song in queue]
+    for arg in args:
+        song = ac_songs(Settings.autocomplete, arg)
+        if not song:
+            continue
+        if song in queue:
+            idx = queue.index(song)
+            humanized[idx] = f"\x1b[5m{humanized[idx]}\x1b[25m"
+            idx_as_pos = num_as_position(idx + 1)
+            if len(queue) == 1:
+                print(f"{Path(song).stem} is 1st in the queue")
+            else:
+                if idx == 0:
+                    next = Path(queue[idx+1]).stem
+                    print(
+                        f"{Path(song).stem} is 1st in the queue,"
+                        f" before {next}")
+                elif idx == len(queue) - 1:
+                    prev = Path(queue[idx-1]).stem
+                    print(
+                        f"{Path(song).stem} is {idx_as_pos} in the queue,"
+                        f" after {prev}")
+                else:
+                    next = Path(queue[idx+1]).stem
+                    prev = Path(queue[idx-1]).stem
+                    print(
+                        f"{Path(song).stem} is {idx_as_pos} in the queue,"
+                        f" before {next}, and after {prev}")
+                print()
+                print(f'...{", ".join(humanized[idx-5:idx+6])}...')
+        else:
+            print(f"{song} is not in the queue")
 
 
 def status():
@@ -54,10 +92,10 @@ def status():
         return
     else:
         time = cur_time % Player.duration
-    if Player.cur_song.name in Player.queue[Player.q_idx - 1]:
-        queue = Player.queue
-    else:
+    if Player.q_should_shuffle:
         queue = Player.shuffled_queue
+    else:
+        queue = Player.queue
     elapsed_time = int(
         sum(
             [
@@ -247,6 +285,7 @@ Q_CMDS = {
     "play": lambda *args: play(),
     "next": lambda *args: qnext(),
     "prev": lambda *args: prev(),
+    "find": lambda *args: find(*args),
     "loop": lambda *args: loop(),
     "swap": lambda *args: swap(*args),
     "shuffle": lambda *args: shuffle(),
