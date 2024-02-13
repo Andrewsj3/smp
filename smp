@@ -23,10 +23,8 @@ CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
     "config": lambda *args: config(*args),
-    "eval": lambda arg: print(eval(arg)),
-    # For debug only, exceptions are not handled
-    "exit": lambda *args: smp_exit(),
     "delete": lambda *args: delete(*args),
+    "exit": lambda *args: smp_exit(),
     "forward": lambda *args: seek_relative(*args, forward=True),
     "help": lambda *args: ihelp(*args),
     "list": lambda *args: ls(*args),
@@ -418,6 +416,8 @@ def exec_commands(commands, macros):
             # Whenever we see a macro, we need to expand it to actual
             # commands, then we feed it back into this function
             commands = "; ".join(commands).split(';')
+            commands[idx] += f' {" ".join(args)}'
+            # Don't forget to add the arguments
             return exec_commands(commands, macros)
             # Recursion allows macros of arbitrary depth
             # i.e. macros that call other macros that

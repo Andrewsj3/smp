@@ -95,6 +95,9 @@ def timestamp(num):
 
 def num_as_position(num):
     num = str(num)
+    if len(num) > 1 and num.startswith("1"):
+        # Account for 11th, 12th, 13th, etc
+        return num + "th"
     if num.endswith("1"):
         suffix = "st"
     elif num.endswith("2"):

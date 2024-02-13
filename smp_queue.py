@@ -54,6 +54,7 @@ def find(*args):
             idx_as_pos = num_as_position(idx + 1)
             if len(queue) == 1:
                 print(f"{Path(song).stem} is 1st in the queue")
+                return
             else:
                 if idx == 0:
                     next = Path(queue[idx+1]).stem
@@ -72,7 +73,7 @@ def find(*args):
                         f"{Path(song).stem} is {idx_as_pos} in the queue,"
                         f" before {next}, and after {prev}")
                 print()
-                print(f'...{", ".join(humanized[idx-5:idx+6])}...')
+                print(f'...{", ".join(humanized[max(idx-5, 0):idx+6])}...')
         else:
             print(f"{song} is not in the queue")
 
