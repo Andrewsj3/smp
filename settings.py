@@ -53,7 +53,7 @@ ls_sep = ", "
 
 def reload_cfg(startup=True):
     Settings.read_config(
-        parser.get_config("/home/andrewsj05/.config/smp/smp.conf"), startup
+        parser.get_config(CONFIG_PATH), startup
     )
 
 
