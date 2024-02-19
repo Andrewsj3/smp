@@ -5,7 +5,8 @@ import csv
 import mutagen
 from player import Player
 from settings import Settings
-from smp_common import autocomplete, timestamp, ac_songs, num_as_position
+import re
+from smp_common import autocomplete, timestamp, ac_songs
 from smp_help import ihelp
 
 
@@ -28,6 +29,22 @@ def queue(*args):
         Q_CMDS[cmd](*args)
     else:
         autocomplete(Settings.autocomplete, cmd, Q_CMDS, *args)
+
+
+def num_as_position(num):
+    num = str(num)
+    if re.match(r"^\d*1[123]$", num):
+        # Account for 11th, 12th, 13th, etc
+        return num + "th"
+    if num.endswith("1"):
+        suffix = "st"
+    elif num.endswith("2"):
+        suffix = "nd"
+    elif num.endswith("3"):
+        suffix = "rd"
+    else:
+        suffix = "th"
+    return num + suffix
 
 
 def show():

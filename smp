@@ -60,6 +60,9 @@ def should_repeat():
 
 def repeat(*args):
     cur_song = Path(Player.cur_song).stem
+    if not cur_song:
+        print("Nothing playing")
+        return
     if not args:
         Player.repeats = 1
         print(f"{cur_song} will be repeated {Player.repeats} times.")
@@ -79,7 +82,7 @@ if platform == "win32":
             ch = msvcrt.getch()
             if ch in (b"\x00", b"\xe0"):
                 msvcrt.getch()
-            if ch == b"\x08":
+            elif ch == b"\x08":
                 if len(string[0]) != 0:
                     string[0] = string[0][:-1]
                     print(end="\b \b", flush=True)
@@ -195,6 +198,8 @@ def ls(*args):
     if ls_args is None:
         return
     songs = _ls_parse_args(ls_args)
+    if not songs:
+        return
     print(Settings.ls_sep.join(songs))
 
 
@@ -236,7 +241,10 @@ def _ls_parse_args(ls_args):
             print(f"Invalid flag {flag}")
             continue
         if flag == "-n":
-            vals = list(map(lambda x: int(str.strip(x)), val.split(",")))
+            if not all([x.isdigit() for x in val.split(',')]):
+                print("Malformed arguments")
+                return
+            vals = list(map(lambda x: int(str.strip(x)), val.split(",")[:3]))
             idxs = slice(*vals)
             humanized = humanized[idxs]
         elif flag == "-s":

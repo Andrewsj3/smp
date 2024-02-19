@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from settings import Settings
 
 
@@ -95,7 +96,7 @@ def timestamp(num):
 
 def num_as_position(num):
     num = str(num)
-    if len(num) > 1 and num.startswith("1"):
+    if re.match(r"^\d*1[123]$", num):
         # Account for 11th, 12th, 13th, etc
         return num + "th"
     if num.endswith("1"):
