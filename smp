@@ -411,7 +411,9 @@ def stat_config(cfg_last_modified):
     return cfg_last_modified
 
 
-def exec_commands(commands, macros):
+def exec_commands(commands, macros, visited=None):
+    if visited is None:
+        visited = set()
     args_list = []
     commands = list(map(str.strip, commands))
     for idx, cmd in enumerate(commands):
@@ -420,13 +422,17 @@ def exec_commands(commands, macros):
             # Make normal commands take precedence over macros
             args_list.append(" ".join((command.strip(), *args)))
         elif mcr := is_valid_cmd(cmd, macros):
+            if mcr in visited:
+                print("Recursive or cyclical macros are not allowed")
+                return
+            else:
+                visited.add(mcr)
             commands[idx] = macros[mcr]
             # Whenever we see a macro, we need to expand it to actual
             # commands, then we feed it back into this function
             commands = "; ".join(commands).split(';')
             commands[idx] += f' {" ".join(args)}'
-            # Don't forget to add the arguments
-            return exec_commands(commands, macros)
+            return exec_commands(commands, macros, visited)
             # Recursion allows macros of arbitrary depth
             # i.e. macros that call other macros that
             # call other macros ...

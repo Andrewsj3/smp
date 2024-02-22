@@ -64,6 +64,14 @@ def add_macro(*args):
         ihelp("macro add")
         return
     mcr, *args = args
+    for arg in args:
+        if arg == mcr:
+            print("Recursive macros are not allowed")
+            return
+        if mcr in Player.macros.get(arg, []):
+            print("Cyclical macros are not allowed")
+            del Player.macros[arg]
+            return
     if mcr in CMDS:
         print("Macros can't be named existing commands")
         return
