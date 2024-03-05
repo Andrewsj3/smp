@@ -2,7 +2,7 @@ from settings import Settings
 
 
 class Player:
-    # Global settings for the music Player
+    # Global settings for the music player
     volume = Settings.default_volume
     loops = 0
     repeats = 0
@@ -17,3 +17,6 @@ class Player:
     q_idx = 0
     q_should_loop = False
     q_should_shuffle = False
+    history_idx = 0
+    history_picked = False  # Whether the most recent input was
+    # selected from history

@@ -18,7 +18,6 @@ import mutagen  # for getting song duration
 import pygame
 from pygame import mixer
 from pygame.mixer import music
-
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
@@ -52,6 +51,15 @@ def is_valid_cmd(cmd, cmd_set):
         return commands[0]
 
 
+def getch():
+    return stdin.read(1)
+
+
+def kbhit():
+    dr, dw, de = select([stdin], [], [], 0)
+    return dr != []
+
+
 def should_repeat():
     if not (music.get_busy() or Player.should_pause) and Player.repeats:
         Player.repeats -= 1
@@ -77,34 +85,82 @@ def repeat(*args):
 if platform == "win32":
     import msvcrt
 
-    def input_entered(string=[""]):
+    def input_entered(history, string=[""]):
+        history_len = len(history)
         if msvcrt.kbhit():
-            ch = msvcrt.getch()
-            if ch in (b"\x00", b"\xe0"):
-                msvcrt.getch()
-            elif ch == b"\x08":
+            ch = msvcrt.getch().decode()
+            if ch in ("\x00", "\xe0"):
+                Player.history_picked = True
+                key = msvcrt.getch().decode()
+                if history_len > 0:
+                    if key == "H":  # Up arrow
+                        Player.history_idx -= 1
+                    elif key == "P":  # Down arrow
+                        Player.history_idx += 1
+                    Player.history_idx %= len(history)
+                    string[0] = history[Player.history_idx]
+                    print(end="\x1b[3G\x1b[0K", flush=True)
+                    # Going to 3rd column (2 after the prompt string)
+                    # and erasing to EOL
+                    print(end=string[0], flush=True)
+            elif ch == "\x08":  # Backspace
+                Player.history_picked = False
                 if len(string[0]) != 0:
                     string[0] = string[0][:-1]
                     print(end="\b \b", flush=True)
-            elif ch != b"\r":
-                string[0] += ch.decode()
-                print(end=ch.decode(), flush=True)
+            elif ch != "\r":
+                Player.history_picked = False
+                string[0] += ch
+                print(end=ch, flush=True)
             else:
+                Player.history_idx = 0
                 res = string[0]
                 print()
-                if not res:
-                    print(end=Settings.prompt, flush=True)
                 string[0] = ""
                 return res
         return False  # Fix windows bug where prompt would continually print
 else:
+    import termios
+    fd = stdin.fileno()
+    new_term = termios.tcgetattr(fd)
+    old_term = termios.tcgetattr(fd)
 
-    def input_entered():
-        # Check if user has entered a newline
-        # and return stdin if true
-        stdin_is_ready = select([stdin], [], [], 0)[0]
-        if stdin_is_ready:
-            return stdin_is_ready[0].readline().strip()
+    # new terminal setting unbuffered
+    new_term[3] = (new_term[3] & ~termios.ICANON & ~termios.ECHO)
+
+    def input_entered(history, buf=[""]):
+        history_len = len(history)
+        if kbhit():
+            ch = getch()
+            if ch == "\n":
+                Player.history_idx = 0
+                res = buf[0]
+                buf[0] = ""
+                print()
+                return res
+            elif ch == "\x7f":  # Backspace
+                Player.history_picked = False
+                if len(buf[0]) > 0:
+                    buf[0] = buf[0][:-1]
+                    print(end="\b \b", flush=True)
+            elif ch == "\x1b":  # Escape sequence
+                Player.history_picked = True
+                _, key = getch(), getch()
+                if history_len > 0:
+                    if key == "A":  # Up arrow
+                        Player.history_idx -= 1
+                    elif key == "B":  # Down arrow
+                        Player.history_idx += 1
+                    Player.history_idx %= len(history)
+                    buf[0] = history[Player.history_idx]
+                    print(end="\x1b[3G\x1b[0K", flush=True)
+                    # Going to 3rd column (2 after the prompt string)
+                    # and erasing to EOL
+                    print(end=buf[0], flush=True)
+            else:
+                Player.history_picked = False
+                buf[0] += ch
+                print(end=ch, flush=True)
         return False
 
 
@@ -374,6 +430,7 @@ def unpause():
 def smp_exit():
     music.unload()
     mixer.quit()
+    Settings.reset_term()
     exit(0)
 
 
@@ -497,6 +554,8 @@ def delete(*args):
 
 
 def main():
+    Settings.set_term()
+    history = []
     Player.macros = macros.load_macros()
     Settings.read_config(parser.get_config(CONFIG_PATH))
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
@@ -525,14 +584,18 @@ def main():
             play(Player.cur_song)
         if q.should_advance():
             q.play()
-        command = input_entered()
+        command = input_entered(history=history)
         if command is False:
             continue
         elif not command:
             print(end=Settings.prompt, flush=True)
         else:
+            if not Player.history_picked:
+                history.append(command)
             cmd, *args = command.lower().split()
             if is_valid_cmd(cmd, CMDS) == "macro":
+                if not Player.history_picked:
+                    history.append(" ".join((cmd, *args)))
                 CMDS["macro"](*args)  # Special case as splitting by ';' breaks
                 # add_macro
             else:

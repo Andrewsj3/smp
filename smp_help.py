@@ -1,4 +1,8 @@
+from settings import Settings
+
+
 def ihelp(*topic):
+    Settings.reset_term()
     if topic:
         topic = " ".join(topic)
         if topic.startswith("queue") and len(topic.split()) == 2:
@@ -9,6 +13,8 @@ def ihelp(*topic):
             print(M_CMDS.get(subcmd, "No help for that"))
         else:
             print(CMDS.get(topic, "No help for that"))
+
+        Settings.set_term()
         return
     print("Welcome to smp's interactive help utility!")
     print("Type `quit` or Ctrl-D to return to smp")
@@ -20,10 +26,12 @@ def ihelp(*topic):
             name = input(">>> ").lower().strip()
         except EOFError:
             print()
+            Settings.set_term()
             return
         if not name:
             continue
         if name == "quit":
+            Settings.set_term()
             return
         elif name == "list":
             print("\n".join(CMDS))
