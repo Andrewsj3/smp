@@ -88,8 +88,8 @@ if platform == "win32":
     def input_entered(history, string=[""]):
         history_len = len(history)
         if msvcrt.kbhit():
-            ch = msvcrt.getch().decode()
-            if ch in ("\x00", "\xe0"):
+            ch = msvcrt.getch()
+            if ch in (b"\x00", b"\xe0"):
                 Player.history_picked = True
                 key = msvcrt.getch().decode()
                 if history_len > 0:
@@ -103,13 +103,14 @@ if platform == "win32":
                     # Going to 3rd column (2 after the prompt string)
                     # and erasing to EOL
                     print(end=string[0], flush=True)
-            elif ch == "\x08":  # Backspace
+            elif ch == b"\x08":  # Backspace
                 Player.history_picked = False
                 if len(string[0]) != 0:
                     string[0] = string[0][:-1]
                     print(end="\b \b", flush=True)
-            elif ch != "\r":
+            elif ch != b"\r":
                 Player.history_picked = False
+                ch = ch.decode()
                 string[0] += ch
                 print(end=ch, flush=True)
             else:
