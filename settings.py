@@ -2,6 +2,8 @@ from pathlib import Path
 import parser
 import os
 from sys import stdin, platform
+if platform != "win32":
+    import termios
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 
@@ -70,7 +72,6 @@ class Settings:
     ls_sep: str = ", "
     _cfg_dict = {}
     if platform != "win32":
-        import termios
         fd = stdin.fileno()
         new_term = termios.tcgetattr(fd)
         old_term = termios.tcgetattr(fd)

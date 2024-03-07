@@ -85,11 +85,13 @@ def repeat(*args):
 if platform == "win32":
     import msvcrt
 
-    def input_entered(history, string=[""]):
+    def input_entered(history, buf=[""], original_input=[""]):
         history_len = len(history)
         if msvcrt.kbhit():
             ch = msvcrt.getch()
-            if ch in (b"\x00", b"\xe0"):
+            if ch == b"\x1b":  # Escape
+                return False  # We don't want to count this as a character
+            elif ch in (b"\x00", b"\xe0"):
                 Player.history_picked = True
                 key = msvcrt.getch().decode()
                 if history_len > 0:
@@ -97,39 +99,43 @@ if platform == "win32":
                         Player.history_idx -= 1
                     elif key == "P":  # Down arrow
                         Player.history_idx += 1
-                    Player.history_idx %= len(history)
-                    string[0] = history[Player.history_idx]
+                    filtered_hist = [entry for entry in history if
+                                     entry.startswith(original_input[0])]
+                    if filtered_hist:
+                        Player.history_idx %= len(filtered_hist)
+                        buf[0] = filtered_hist[Player.history_idx]
+                    else:
+                        Player.history_idx %= len(history)
+                        buf[0] = history[Player.history_idx]
                     print(end="\x1b[3G\x1b[0K", flush=True)
                     # Going to 3rd column (2 after the prompt string)
                     # and erasing to EOL
-                    print(end=string[0], flush=True)
+                    print(end=buf[0], flush=True)
             elif ch == b"\x08":  # Backspace
+                if Player.history_picked:
+                    print(end="\x1b[3G\x1b[0K", flush=True)
+                    buf[0] = ""
+                    original_input[0] = ""
                 Player.history_picked = False
-                if len(string[0]) != 0:
-                    string[0] = string[0][:-1]
+                if len(buf[0]) != 0:
+                    buf[0] = buf[0][:-1]
                     print(end="\b \b", flush=True)
             elif ch != b"\r":
                 Player.history_picked = False
                 ch = ch.decode()
-                string[0] += ch
+                buf[0] += ch
+                original_input[0] = buf[0]
                 print(end=ch, flush=True)
             else:
                 Player.history_idx = 0
-                res = string[0]
+                res = buf[0]
                 print()
-                string[0] = ""
+                buf[0] = ""
+                original_input[0] = ""
                 return res
         return False  # Fix windows bug where prompt would continually print
 else:
-    import termios
-    fd = stdin.fileno()
-    new_term = termios.tcgetattr(fd)
-    old_term = termios.tcgetattr(fd)
-
-    # new terminal setting unbuffered
-    new_term[3] = (new_term[3] & ~termios.ICANON & ~termios.ECHO)
-
-    def input_entered(history, buf=[""]):
+    def input_entered(history, buf=[""], original_input=[""]):
         history_len = len(history)
         if kbhit():
             ch = getch()
@@ -137,13 +143,18 @@ else:
                 Player.history_idx = 0
                 res = buf[0]
                 buf[0] = ""
+                original_input[0] = ""
                 print()
                 return res
             elif ch == "\x7f":  # Backspace
+                if Player.history_picked:
+                    print(end="\x1b[3G\x1b[0K", flush=True)
+                    buf[0] = ""
                 Player.history_picked = False
                 if len(buf[0]) > 0:
                     buf[0] = buf[0][:-1]
                     print(end="\b \b", flush=True)
+                original_input[0] = buf[0]
             elif ch == "\x1b":  # Escape sequence
                 Player.history_picked = True
                 _, key = getch(), getch()
@@ -152,8 +163,16 @@ else:
                         Player.history_idx -= 1
                     elif key == "B":  # Down arrow
                         Player.history_idx += 1
-                    Player.history_idx %= len(history)
-                    buf[0] = history[Player.history_idx]
+                    else:
+                        return
+                    filtered_hist = [entry for entry in history if
+                                     entry.startswith(original_input[0])]
+                    if filtered_hist:
+                        Player.history_idx %= len(filtered_hist)
+                        buf[0] = filtered_hist[Player.history_idx]
+                    else:
+                        Player.history_idx %= len(history)
+                        buf[0] = history[Player.history_idx]
                     print(end="\x1b[3G\x1b[0K", flush=True)
                     # Going to 3rd column (2 after the prompt string)
                     # and erasing to EOL
@@ -161,6 +180,7 @@ else:
             else:
                 Player.history_picked = False
                 buf[0] += ch
+                original_input[0] = buf[0]
                 print(end=ch, flush=True)
         return False
 
