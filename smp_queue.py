@@ -148,6 +148,8 @@ def clear():
     Player.q_idx = 0
     Player.queue.clear()
     Player.shuffled_queue.clear()
+    Player.playing_queue = False
+    # Bad things would happen if we tried to advance and the queue was suddenly empty
 
 
 def add(*args):
@@ -241,13 +243,23 @@ def play():
         Player.q_idx += 1
 
 
-def save(file):
+def save(*args):
+    if not args:
+        print("Expected a name")
+        return
+    file = args[0]
     with open(f"{Settings.playlist_dir}/{file}.csv", "w", newline="") as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerow(Player.queue)
 
 
-def load(file):
+def load(*args):
+    if not args:
+        print("Playlists:")
+        for f in Settings.playlist_dir.glob("*"):
+            print(f.stem)
+        return
+    file = args[0]
     if not Path.exists(Path(f"{Settings.playlist_dir}/{file}.csv")):
         print("That playlist doesn't exist")
         return

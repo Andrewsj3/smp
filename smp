@@ -267,6 +267,8 @@ def volume(*args):
         Player.volume = type_converter(
             args[0], float, "Volume needs to be between 0 and 100"
         )
+        if not isinstance(Player.volume, float):
+            return
         music.set_volume(Player.volume / 100)
 
 

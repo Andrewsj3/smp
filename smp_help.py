@@ -69,7 +69,8 @@ Q_CMDS = {
     "add": """Usage: queue add <*songs>
 Adds songs to the end of the queue. Every argument after `add`
 is treated as a song. Works with autocomplete.""",
-    "clear": """Clears the current queue.""",
+    "clear": """Clears the current queue. This also stops the
+queue from advancing if it is currently playing.""",
     "remove": """Usage: queue remove <*songs>
 Works the same as `queue add`, but removes songs from wherever
 they are in the queue.""",
