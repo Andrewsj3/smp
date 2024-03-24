@@ -491,7 +491,7 @@ def stat_config(cfg_last_modified):
     return cfg_last_modified
 
 
-def exec_commands(commands, macros, visited=None):
+def exec_commands(commands, macros, history, visited=None):
     if visited is None:
         visited = set()
     args_list = []
@@ -512,12 +512,13 @@ def exec_commands(commands, macros, visited=None):
             # commands, then we feed it back into this function
             commands = "; ".join(commands).split(';')
             commands[idx] += f' {" ".join(args)}'
-            return exec_commands(commands, macros, visited)
+            return exec_commands(commands, macros, history, visited)
             # Recursion allows macros of arbitrary depth
             # i.e. macros that call other macros that
             # call other macros ...
         else:
             print(f"Invalid command {cmd}")
+            del history[-1]
     parse_and_execute("; ".join(args_list), CMDS)
 
 
@@ -613,17 +614,15 @@ def main():
         elif not command:
             print(end=Settings.prompt, flush=True)
         else:
-            if not Player.history_picked:
+            if not Player.history_picked and command not in history:
                 history.append(command)
             cmd, *args = command.lower().split()
             if is_valid_cmd(cmd, CMDS) == "macro":
-                if not Player.history_picked:
-                    history.append(" ".join((cmd, *args)))
                 CMDS["macro"](*args)  # Special case as splitting by ';' breaks
                 # add_macro
             else:
                 commands = " ".join((cmd, *args)).split(";")
-                exec_commands(commands, Player.macros)
+                exec_commands(commands, Player.macros, history)
             print(end=Settings.prompt, flush=True)
 
 

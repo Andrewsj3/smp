@@ -62,7 +62,17 @@ def find(*args):
         queue = Player.queue
     humanized = [song[: song.index(".")] for song in queue]
     for arg in args:
-        song = ac_songs(Settings.autocomplete, arg)
+        if arg.isdigit():
+            # User is searching for the nth song instead of a title
+            arg = int(arg)
+            if arg > len(queue) or arg < 1:
+                print(f"Please enter a valid position between 1-{len(queue)}")
+                continue
+            idx = arg - 1
+            song = queue[idx]
+            print(song)
+        else:
+            song = ac_songs(Settings.autocomplete, arg)
         if not song:
             continue
         if song in queue:

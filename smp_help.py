@@ -101,11 +101,13 @@ Loads the songs in <filename> into the current queue.""",
 its index in the queue, the total length of the playlist,
 and total time elapsed as a timestamp.
 and a percentage. Only works if the queue is playing (paused is ok).""",
-    "find": """Usage: queue find <*songs>
+    "find": """Usage: queue find <*songs> | <*indexes>
 For each song in songs, prints its position in the queue,
 and the songs that come immediately before and after it (if applicable).
 It also prints the previous 5 songs and the next 5 songs with
-the desired song in blinking text. May not work on all systems."""
+the desired song in blinking text. May not work on all systems.
+Alternatively, you can enter a position to find out what song is
+at that position."""
 }
 CMDS = {
     "play": """Usage: play <song> [volume] [loops]
