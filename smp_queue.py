@@ -70,7 +70,6 @@ def find(*args):
                 continue
             idx = arg - 1
             song = queue[idx]
-            print(song)
         else:
             song = ac_songs(Settings.autocomplete, arg)
         if not song:
