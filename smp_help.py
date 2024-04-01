@@ -124,7 +124,9 @@ with -1 looping forever.""",
     "volume": """Usage: volume [level]
 With no arguments, prints current volume percentage.
 
-Otherwise, sets global volume to `level`.
+Otherwise, sets global volume to `level`, unless it is preceded
+by a '+' or '-' sign, in which case the volume is incremented or
+decremented by that amount.
 Note that `level` must be between 0 and 100""",
     "ls": """Usage: ls [-s <substr>] [-n <range>]
 With no arguments, lists all songs in the music directory.
