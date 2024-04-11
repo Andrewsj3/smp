@@ -49,6 +49,8 @@ CMDS = {
 
 
 def is_valid_cmd(cmd, cmd_set):
+    if cmd in cmd_set:
+        return cmd
     commands = [c for c in cmd_set if c.startswith(cmd)]
     if len(commands) == 1:
         return commands[0]
@@ -483,6 +485,9 @@ def parse_and_execute(cmd, cmd_set):
     commands = parse_input(cmd)
     for command in commands:
         cmd, *args = command
+        for idx, arg in enumerate(args):
+            if arg in Player.macros:
+                args[idx] = Player.macros[arg]
         if not cmd:
             continue
         if cmd in cmd_set:
