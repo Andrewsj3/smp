@@ -60,7 +60,15 @@ def find(*args):
         queue = Player.shuffled_queue
     else:
         queue = Player.queue
+    if not queue:
+        print("No songs in the queue")
+        return
     humanized = [song[: song.index(".")] for song in queue]
+    if not args:
+        args = [Player.cur_song.name]
+        if not Player.cur_song.name:
+            print("Not playing queue")
+            return
     for arg in args:
         if arg.isdigit():
             # User is searching for the nth song instead of a title
@@ -158,7 +166,8 @@ def clear():
     Player.queue.clear()
     Player.shuffled_queue.clear()
     Player.playing_queue = False
-    # Bad things would happen if we tried to advance and the queue was suddenly empty
+    # Bad things would happen if we tried to advance
+    # and the queue was suddenly empty
 
 
 def add(*args):

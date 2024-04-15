@@ -1,4 +1,5 @@
 from settings import Settings
+from pathlib import Path
 
 
 class Player:
@@ -10,7 +11,7 @@ class Player:
     duration = 0
     queue = []
     macros = {}
-    cur_song = ""
+    cur_song = Path()
     shuffled_queue = []
     playing_queue = False
     should_pause = False
