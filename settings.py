@@ -33,7 +33,7 @@ autocomplete = 1
 # 2 - Full autocomplete: If your input is ambiguous, smp will list
 # all possible commands and let you choose
 
-default_volume = 80
+default_volume = 100
 # Sets the starting volume. Must be between 0 and 100
 
 ls_sep = ", "
@@ -42,7 +42,6 @@ ls_sep = ", "
 """
             )
         print(f"Config file created in {CONFIG_PATH}")
-        print(end=Settings.prompt, flush=True)
         return
     if not args:
         with open(CONFIG_PATH) as f:
