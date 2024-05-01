@@ -1,6 +1,5 @@
 from pathlib import Path
 import parser
-import os
 from sys import stdin, platform
 if platform != "win32":
     import termios
@@ -12,10 +11,8 @@ def config(*args, generate=False):
     if generate or not CONFIG_PATH.exists():
         print("Generating default configuration file...")
         if not CONFIG_PATH.parent.exists():
-            os.mkdir(CONFIG_PATH.parent)
-        if CONFIG_PATH.exists():
-            os.remove(CONFIG_PATH)
-        with open(CONFIG_PATH, "x", encoding="utf-8") as f:
+            CONFIG_PATH.mkdir(parents=True)
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             f.write(
                 """[General]
 # Path to all your songs and playlists
@@ -23,9 +20,10 @@ music_dir = ~/music
 playlist_dir = ~/music/playlists
 # Also equivalent to %(music_dir)s/playlists
 
-# By default, this prompt should look like a music note.
-# If it doesn't, either replace it or consider using a patched font.
-prompt = ' '
+# Changed the default prompt. You can still enable the old one
+# by uncommenting it
+prompt = '$ '
+#prompt = ' '
 
 autocomplete = 1
 # 0 - No autocomplete (not recommended)
