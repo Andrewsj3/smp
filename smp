@@ -441,7 +441,7 @@ def seek_absolute(*args):
 
 
 def pause():
-    Player.should_pause = ~Player.should_pause
+    Player.should_pause = not Player.should_pause
     if Player.should_pause:
         music.pause()
     else:
