@@ -27,6 +27,7 @@ CMDS = {
     "config": lambda *args: config(*args),
     "delete": lambda *args: delete(*args),
     "exit": lambda *args: smp_exit(),
+    "find": lambda *args: find(*args),
     "forward": lambda *args: seek_relative(*args, forward=True),
     "help": lambda *args: ihelp(*args),
     "list": lambda *args: ls(*args),
@@ -283,72 +284,23 @@ def volume(*args):
 
 
 def ls(*args):
-    ls_args = _ls_collect_args(*args)
-    if ls_args is None:
-        return
-    songs = _ls_parse_args(ls_args)
-    if not songs:
-        return
-    print(Settings.ls_sep.join(songs))
+    songs = gen_files()
+    songs.sort()
+    humanized = [song[: song.index(".")] for song in songs]
+    print(Settings.ls_sep.join(humanized))
 
 
-def _ls_collect_args(*args):
-    ls_args = []
-    arg_str = ""
+def find(*args):
+    if not args:
+        ihelp("find")
+        return
+    songs = gen_files()
+    songs.sort()
+    humanized = {song[: song.index(".")] for song in songs}
+
     for arg in args:
-        if arg.startswith("-"):
-            if arg[1:].isdigit():
-                # Don't confuse negative numbers with flags
-                arg_str += arg.strip()
-                continue
-            if arg_str:
-                ls_args.append(arg_str)
-                arg_str = ""
-            ls_args.append(arg)
-        else:
-            arg_str += arg.strip()
-    if arg_str:
-        ls_args.append(arg_str)
-    if len(ls_args) % 2 != 0:
-        print("Malformed arguments")
-        return
-    return ls_args
-
-
-def _ls_parse_args(ls_args):
-    files = gen_files()
-    files.sort()
-    humanized = [song[: song.index(".")] for song in files]
-    i_arg = iter(ls_args)
-    while True:
-        try:
-            flag, val = next(i_arg), next(i_arg)
-        except StopIteration:
-            break
-        flag = flag.lower()
-        if flag not in ("-s", "-n"):
-            print(f"Invalid flag {flag}")
-            continue
-        if flag == "-n":
-            if not all([x.isdigit() for x in val.split(',')]):
-                print("Malformed arguments")
-                return
-            vals = list(map(lambda x: int(str.strip(x)), val.split(",")[:3]))
-            idxs = slice(*vals)
-            humanized = humanized[idxs]
-        elif flag == "-s":
-            tmp = []
-            found = False
-            for song in humanized:
-                if not song.startswith(val):
-                    if not found:
-                        continue
-                    break
-                tmp.append(song)
-                found = True
-            humanized = tmp
-            del tmp
-    return humanized
+        songs = [song for song in humanized if song.startswith(arg)]
+        print(f"{arg}: {Settings.ls_sep.join(songs)}")
 
 
 def loop():

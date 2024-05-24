@@ -128,17 +128,11 @@ Otherwise, sets global volume to `level`, unless it is preceded
 by a '+' or '-' sign, in which case the volume is incremented or
 decremented by that amount.
 Note that `level` must be between 0 and 100""",
-    "ls": """Usage: ls [-s <substr>] [-n <range>]
-With no arguments, lists all songs in the music directory.
-
-With `-s`, lists only songs beginning with `substr`.
-
-With `-n`, lists only songs which indexes are in `range`.
-The syntax is `start`,`stop`,`step`, just like range.
-e.g. `ls -n 0,10,2` lists every other song in the first 10 songs.
-
-These flags can be specified multiple times and are applied
-from left to right.""",
+    "ls": """Lists all songs in your music directory.
+To narrow your search, see `find`.""",
+    "find": """Usage: find <*substrs>
+For each substring in `substrs`, lists all songs starting with that
+substring in alphabetical order.""",
     "loop": """Toggles loop mode for the current song.
 Note that when a new song is played, loop is automatically disabled,
 so this command only takes effect when a song is playing.""",
