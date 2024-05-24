@@ -4,7 +4,8 @@ import json
 from settings import Settings
 from player import Player
 from smp_help import ihelp
-MACROS_PATH = Path("~/.config/smp/macros.json").expanduser()
+CONFIG_DIR = Path("~/.config/smp").expanduser()
+MACROS_PATH = CONFIG_DIR / "macros.json"
 M_CMDS = {
     "add": lambda *args: add_macro(*args),
     "save": lambda *args: save_macro(*args),
@@ -50,8 +51,9 @@ def macro(*args):
 
 
 def load_macros():
-    if not MACROS_PATH.exists():
-        with open(MACROS_PATH, 'x') as f:
+    if not CONFIG_DIR.exists():
+        CONFIG_DIR.mkdir()
+        with open(MACROS_PATH, 'w') as f:
             f.write("{}")
         return {}
     else:

@@ -1,6 +1,6 @@
 from pygame.mixer import music
 from pathlib import Path
-from random import shuffle as shuf
+from random import shuffle
 import csv
 import mutagen
 from player import Player
@@ -67,7 +67,7 @@ def find(*args):
     if not args:
         args = [Player.cur_song.name]
         if not Player.cur_song.name:
-            print("Not playing queue")
+            print("Nothing playing")
             return
     for arg in args:
         if arg.isdigit():
@@ -220,15 +220,15 @@ def randomize():
         print("Nothing to randomize")
         return
     elif len(Player.shuffled_queue) == 1:
-        print("Still nothing to randomize")
+        print("Nothing to randomize")
         return
     initial = [*Player.shuffled_queue]
     while Player.shuffled_queue == initial:
-        shuf(Player.shuffled_queue)
+        shuffle(Player.shuffled_queue)
     Player.q_should_shuffle = True
 
 
-def shuffle():
+def qshuffle():
     Player.q_should_shuffle ^= True
     if Player.queue == Player.shuffled_queue:
         randomize()
@@ -236,7 +236,7 @@ def shuffle():
 
 def play():
     if not Player.queue:
-        print("Nothing in the queue")
+        print("Nothing queued")
         return
     if Player.q_idx == len(Player.queue):
         Player.q_idx = 0
@@ -336,7 +336,7 @@ Q_CMDS = {
     "find": lambda *args: find(*args),
     "loop": lambda *args: loop(),
     "swap": lambda *args: swap(*args),
-    "shuffle": lambda *args: shuffle(),
+    "shuffle": lambda *args: qshuffle(),
     "randomize": lambda *args: randomize(),
     "save": lambda *args: save(*args),
     "load": lambda *args: load(*args),
