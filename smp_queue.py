@@ -28,7 +28,7 @@ def queue(*args):
     if cmd in Q_CMDS:
         Q_CMDS[cmd](*args)
     else:
-        autocomplete(Settings.autocomplete, cmd, Q_CMDS, *args)
+        autocomplete(cmd, Q_CMDS, *args)
 
 
 def num_as_position(num):

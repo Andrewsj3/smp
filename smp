@@ -445,7 +445,7 @@ def parse_and_execute(cmd, cmd_set):
         if cmd in cmd_set:
             cmd_set[cmd](*args)
         else:
-            autocomplete(Settings.autocomplete, cmd, cmd_set, *args)
+            autocomplete(cmd, cmd_set, *args)
 
 
 def stat_config(cfg_last_modified):
@@ -576,7 +576,7 @@ def main():
         command = input_entered(history=history)
         if command is False:
             continue
-        elif not command:
+        elif not command or "\x0c" in command or "\t" in command:  # Ctrl-l
             print(end=Settings.prompt, flush=True)
         else:
             if not Player.history_picked and command not in history:

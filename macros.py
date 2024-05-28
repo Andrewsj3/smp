@@ -1,7 +1,6 @@
 from pathlib import Path
 from smp_common import autocomplete
 import json
-from settings import Settings
 from player import Player
 from smp_help import ihelp
 CONFIG_DIR = Path("~/.config/smp").expanduser()
@@ -47,7 +46,7 @@ def macro(*args):
     if cmd in M_CMDS:
         M_CMDS[cmd](*args)
     else:
-        autocomplete(Settings.autocomplete, cmd, M_CMDS, *args)
+        autocomplete(cmd, M_CMDS, *args)
 
 
 def load_macros():

@@ -24,8 +24,8 @@ def gen_files():
     )
 
 
-def autocomplete(ac_level, cmd, cmd_set, *args):
-    if ac_level == 0:
+def autocomplete(cmd, cmd_set, *args):
+    if Settings.autocomplete == 0:
         print("Autocomplete is disabled")
         return
     commands = [c for c in cmd_set if c.startswith(cmd)]
@@ -34,11 +34,11 @@ def autocomplete(ac_level, cmd, cmd_set, *args):
     elif len(commands) == 0:
         print("Invalid command")
     else:
-        if ac_level == 1:
+        if Settings.autocomplete == 1:
             print(
                 "Ambiguous command, could be one of " f"{', '.join(commands)}"
             )
-        elif ac_level == 2:
+        elif Settings.autocomplete == 2:
             for idx, command in enumerate(commands, start=1):
                 print(f"    {idx}: {command}")
             option = input(
