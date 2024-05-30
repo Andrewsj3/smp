@@ -49,7 +49,7 @@ CMDS = {
 }
 
 
-def is_valid_cmd(cmd, cmd_set):
+def guess_cmd(cmd, cmd_set):
     if cmd in cmd_set:
         return cmd
     commands = [c for c in cmd_set if c.startswith(cmd)]
@@ -463,10 +463,10 @@ def exec_commands(commands, macros, history, visited=None):
     commands = list(map(str.strip, commands))
     for idx, cmd in enumerate(commands):
         cmd, *args = cmd.split()
-        if command := is_valid_cmd(cmd, CMDS):
+        if command := guess_cmd(cmd, CMDS):
             # Make normal commands take precedence over macros
             args_list.append(" ".join((command.strip(), *args)))
-        elif mcr := is_valid_cmd(cmd, macros):
+        elif mcr := guess_cmd(cmd, macros):
             if mcr in visited:
                 print("Recursive or cyclical macros are not allowed")
                 return
@@ -547,6 +547,7 @@ def main():
     history = []
     Player.macros = macros.load_macros()
     Settings.read_config(parser.get_config(CONFIG_PATH))
+    Player.volume = Settings.default_volume
     cfg_last_modified = CONFIG_PATH.stat().st_mtime
     mixer.init()
     failed_calls = 0
@@ -582,7 +583,7 @@ def main():
             if not Player.history_picked and command not in history:
                 history.append(command)
             cmd, *args = command.lower().split()
-            if is_valid_cmd(cmd, CMDS) == "macro":
+            if guess_cmd(cmd, CMDS) == "macro":
                 CMDS["macro"](*args)  # Special case as splitting by ';' breaks
                 # add_macro
             else:

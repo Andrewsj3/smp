@@ -1,10 +1,9 @@
-from settings import Settings
 from pathlib import Path
 
 
 class Player:
     # Global settings for the music player
-    volume = Settings.default_volume
+    volume = 100
     loops = 0
     repeats = 0
     offset = 0

@@ -42,12 +42,14 @@ ls_sep = ", "
         print(f"Config file created in {CONFIG_PATH}")
         return
     if not args:
-        with open(CONFIG_PATH) as f:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            # Need to specify encoding otherwise it could crash on Windows
+            # if your config has unicode characters for the prompt
             print(f"Config file located in {CONFIG_PATH}")
             print(f.read())
             return
     cmd, *_ = args
-    if cmd == generate:
+    if cmd == "generate":
         config(generate=True)
 
 
