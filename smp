@@ -3,7 +3,7 @@ import re
 import csv
 from pathlib import Path
 from select import select  # for non-blocking input, Unix only
-from sys import stdin, platform
+from sys import stdin, platform, argv
 import smp_queue as q
 from smp_queue import Player, queue
 from smp_common import timestamp, gen_files, ac_songs, autocomplete
@@ -21,11 +21,14 @@ from pygame.mixer import music
 if platform == "win32":
     import msvcrt
 
-CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
+CONFIG_DIR = Path("~/.config/smp/").expanduser()
+CONFIG_PATH = CONFIG_DIR / "smp.conf"
+SCRIPTS_PATH = CONFIG_DIR / "scripts"
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
     "config": lambda *args: config(*args),
     "delete": lambda *args: delete(*args),
+    "exec": lambda *args: exec_scripts(*args),
     "exit": lambda *args: smp_exit(),
     "find": lambda *args: find(*args),
     "forward": lambda *args: seek_relative(*args, forward=True),
@@ -47,6 +50,22 @@ CMDS = {
     "unpause": lambda *args: unpause(),
     "volume": lambda *args: volume(*args),
 }
+
+
+def exec_scripts(*args, startup=False):
+    if not (args or startup):
+        # We don't want this if the user provides no scripts on startup
+        ihelp("exec")
+        return
+    for arg in args:
+        if not (SCRIPTS_PATH / arg).exists():
+            print(f"Script {SCRIPTS_PATH / arg} not found")
+            continue
+
+        with open(SCRIPTS_PATH / arg) as script:
+            commands = script.read().splitlines()
+            for line in commands:
+                exec_commands(line, [])
 
 
 def guess_cmd(cmd, cmd_set):
@@ -79,10 +98,11 @@ def repeat(*args):
         return
     if not args:
         Player.repeats = 1
-        print(f"{cur_song} will be repeated {Player.repeats} times.")
+        print(f"{cur_song} will be repeated {Player.repeats} time.")
         return
     repeats = type_converter(args[0], int, "Repeats must be an integer")
-    if not isinstance(repeats, int) or repeats < 1:
+    if not isinstance(repeats, int) or repeats < 0:
+        print("Repeats must be at least 0")
         return
     Player.repeats = repeats
     print(f"{cur_song} will be repeated {Player.repeats} times.")
@@ -115,11 +135,6 @@ def input_entered_win32(history, buf=[""], original_input=[""]):
                 # and erasing to EOL
                 print(end=buf[0], flush=True)
         elif ch == b"\x08":  # Backspace
-            if Player.history_picked:
-                print(end="\x1b[3G\x1b[0K", flush=True)
-                buf[0] = ""
-                original_input[0] = ""
-            Player.history_picked = False
             if len(buf[0]) != 0:
                 buf[0] = buf[0][:-1]
                 print(end="\b \b", flush=True)
@@ -151,10 +166,6 @@ def input_entered_linux(history, buf=[""], original_input=[""]):
             print()
             return res
         elif ch == "\x7f":  # Backspace
-            if Player.history_picked:
-                print(end="\x1b[3G\x1b[0K", flush=True)
-                buf[0] = ""
-            Player.history_picked = False
             if len(buf[0]) > 0:
                 buf[0] = buf[0][:-1]
                 print(end="\b \b", flush=True)
@@ -456,7 +467,8 @@ def stat_config(cfg_last_modified):
     return cfg_last_modified
 
 
-def exec_commands(commands, macros, history, visited=None):
+def exec_commands(commands, history, visited=None):
+    macros = Player.macros
     if visited is None:
         visited = set()
     args_list = []
@@ -477,12 +489,12 @@ def exec_commands(commands, macros, history, visited=None):
             # commands, then we feed it back into this function
             commands = "; ".join(commands).split(';')
             commands[idx] += f' {" ".join(args)}'
-            return exec_commands(commands, macros, history, visited)
+            return exec_commands(commands, history, visited)
             # Recursion allows macros of arbitrary depth
             # i.e. macros that call other macros that
             # call other macros ...
         else:
-            print(f"Invalid command {cmd}")
+            autocomplete(cmd, CMDS, args)
             del history[-1]
     parse_and_execute("; ".join(args_list), CMDS)
 
@@ -543,6 +555,8 @@ def delete(*args):
 
 
 def main():
+    _, *args = argv
+    exec_scripts(*map(Path, args), startup=True)
     Settings.set_term()
     history = []
     Player.macros = macros.load_macros()
@@ -588,7 +602,7 @@ def main():
                 # add_macro
             else:
                 commands = " ".join((cmd, *args)).split(";")
-                exec_commands(commands, Player.macros, history)
+                exec_commands(commands, history)
             print(end=Settings.prompt, flush=True)
 
 

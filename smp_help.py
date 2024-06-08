@@ -21,6 +21,7 @@ def ihelp(*topic):
     print("Type `list` to see the list of available commands")
     print("Type `list queue` to see the list of queue subcommands")
     print("Type `list macro` to see the list of macro subcommands")
+    print("Type `tips` for a list of tips")
     while True:
         try:
             name = input(">>> ").lower().strip()
@@ -45,8 +46,29 @@ def ihelp(*topic):
         elif name.startswith("macro") and len(name.split()) == 2:
             _, subcmd = name.split()
             print(M_CMDS.get(subcmd, "No help for that"))
+        elif name == "tips":
+            print_tips()
         else:
             print(CMDS.get(name, "No help for that"))
+
+
+def print_tips():
+    print("""    1: smp allows unambiguous command abbreviation, which means
+that you can shorten any command as long as it cannot be interpreted
+as another command. e.g. `rep` is fine for repeat, but `re` could be
+either rename, repeat, or rewind. This applies to songs and macros as well,
+but not playlists.\n""")
+    print("""    2: smp also features a macro system, allowing you to
+combine multiple commands into one. You can even use them in other macros,
+but be careful! Don't name them existing subcommands or you may accidentally
+invoke a macro when you didn't mean to.
+See `macro` in this help section for more.\n""")
+    print("""    3: When starting smp, you can specify scripts to run
+at startup. You can use this to do things like automatically load
+and start a playlist. The `exec` command allows you to do this at any time
+if you have scripts you prefer not to execute at launch.
+Scripts live in ~/.config/smp/scripts/.
+See `exec` for more.\n""")
 
 
 M_CMDS = {
@@ -190,4 +212,8 @@ will keep the existing extension. Use this over your operating system's
 tools for renaming files or your playlists may break.
 You can do this for as many songs as you like, e.g.
 rename song1 name1 song2 name2 song3 name3 ...""",
+    "exec": """Usage: exec <*scripts>
+    For each script in scripts, read and execute the commands line by line.
+    The scripts are processed in order, and the scripts are assumed to live at
+    ~/.config/smp/scripts"""
 }
