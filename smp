@@ -556,7 +556,6 @@ def delete(*args):
 
 def main():
     _, *args = argv
-    exec_scripts(*map(Path, args), startup=True)
     Settings.set_term()
     history = []
     Player.macros = macros.load_macros()
@@ -566,6 +565,7 @@ def main():
     mixer.init()
     failed_calls = 0
     print(end=Settings.prompt, flush=True)
+    exec_scripts(*map(Path, args), startup=True)
     while True:
         try:
             cfg_last_modified = stat_config(cfg_last_modified)
