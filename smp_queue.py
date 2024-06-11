@@ -113,14 +113,7 @@ def find(*args):
 
 
 def status():
-    total_time = int(
-        sum(
-            [
-                mutagen.File(Settings.music_dir / f).info.length
-                for f in Player.queue
-            ]
-        )
-    )
+    total_time = sum(Player.queue_info.values())
     cur_time = music.get_pos() / 1000 + Player.offset
     if not Player.playing_queue:
         print("Nothing playing")
@@ -131,14 +124,8 @@ def status():
         queue = Player.shuffled_queue
     else:
         queue = Player.queue
-    elapsed_time = int(
-        sum(
-            [
-                mutagen.File(Settings.music_dir / f).info.length
-                for f in queue[: Player.q_idx - 1]
-            ]
-        )
-    )
+    elapsed_time = sum(Player.queue_info[name]
+                       for name in queue[:Player.q_idx-1])
     cur_song = Path(Player.cur_song).stem
     if len(queue) == 1:
         prev_song = next_song = "N/A"
@@ -166,6 +153,7 @@ def clear():
     Player.queue.clear()
     Player.shuffled_queue.clear()
     Player.playing_queue = False
+    Player.queue_info = {}
     # Bad things would happen if we tried to advance
     # and the queue was suddenly empty
 
@@ -182,6 +170,7 @@ def add(*args):
                 return
             Player.queue.append(song)
             Player.shuffled_queue.append(song)
+            Player.update_info(song)
 
 
 def qnext():
@@ -285,6 +274,10 @@ def load(*args):
         reader = csv.reader(f, delimiter=",")
         Player.queue = next(iter(reader))
         Player.shuffled_queue = [*Player.queue]
+    Player.queue_info = \
+        {name: int(mutagen.File(Settings.music_dir /
+                                name).info.length) for name in Player.queue}
+    Player.q_idx = 0
 
 
 def remove(*args):
@@ -294,6 +287,7 @@ def remove(*args):
             idx = Player.queue.index(arg)
             Player.queue.remove(arg)
             Player.shuffled_queue.remove(arg)
+            del Player.queue_info[arg]
             if Player.playing_queue and idx < Player.q_idx:
                 Player.q_idx -= 1
         else:

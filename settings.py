@@ -1,8 +1,5 @@
 from pathlib import Path
 import parser
-from sys import stdin, platform
-if platform != "win32":
-    import termios
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 
@@ -70,13 +67,6 @@ class Settings:
     default_volume: float = 80
     ls_sep: str = ", "
     _cfg_dict = {}
-    if platform != "win32":
-        fd = stdin.fileno()
-        new_term = termios.tcgetattr(fd)
-        old_term = termios.tcgetattr(fd)
-
-        # new terminal setting unbuffered
-        new_term[3] = (new_term[3] & ~termios.ICANON & ~termios.ECHO)
 
     @classmethod
     def read_config(cls, cfg_dict, startup=True):
@@ -112,13 +102,3 @@ class Settings:
         if not Settings.playlist_dir.exists():
             print("CRITICAL: specified playlist directory does not exist")
             Settings.playlist_dir = Path("~").expanduser()
-
-    @classmethod
-    def reset_term(cls):
-        if platform != "win32":
-            termios.tcsetattr(cls.fd, termios.TCSANOW, cls.old_term)
-
-    @classmethod
-    def set_term(cls):
-        if platform != "win32":
-            termios.tcsetattr(cls.fd, termios.TCSAFLUSH, cls.new_term)
