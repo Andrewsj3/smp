@@ -26,7 +26,7 @@ from smp_queue import Player, queue
 
 CONFIG_DIR = Path("~/.config/smp/").expanduser()
 CONFIG_PATH = CONFIG_DIR / "smp.conf"
-SCRIPTS_PATH = CONFIG_DIR / "scripts"
+SCRIPTS_DIR = CONFIG_DIR / "scripts"
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]
 CMDS = {
     "config": lambda *args: config(*args),
@@ -61,11 +61,11 @@ def exec_scripts(*args, startup=False):
         ihelp("exec")
         return
     for arg in args:
-        if not (SCRIPTS_PATH / arg).exists():
-            print(f"Script {SCRIPTS_PATH / arg} not found")
+        if not (SCRIPTS_DIR / arg).exists():
+            print(f"Script {SCRIPTS_DIR / arg} not found")
             continue
 
-        with open(SCRIPTS_PATH / arg) as script:
+        with open(SCRIPTS_DIR / arg) as script:
             commands = script.read().splitlines()
             for line in commands:
                 exec_commands(line)
@@ -455,8 +455,8 @@ def delete(*args):
 
 
 def init(args):
-    Player.macros = macros.load_macros()
     Settings.read_config(parser.get_config(CONFIG_PATH))
+    Player.macros = macros.load_macros()
     Player.volume = Settings.default_volume
     mixer.init()
     exec_scripts(*map(Path, args), startup=True)
@@ -465,18 +465,22 @@ def init(args):
 def input_entered(user_input, **kwargs):
     while True:
         sleep(0.1)
-        user_input[0] = input(Settings.prompt)
+        if Player.awaiting_commands:
+            user_input[0] = input(Settings.prompt)
 
 
 def main():
+    for dir in (CONFIG_DIR, SCRIPTS_DIR):
+        if not dir.exists():
+            dir.mkdir(parents=True)
     user_input = [None]
     input_thread = Thread(target=input_entered, args=(user_input,))
     input_thread.daemon = True
     _, *args = argv
-    cfg_last_modified = CONFIG_PATH.stat().st_mtime
     failed_calls = 0
     clock = pygame.time.Clock()
     init(args)
+    cfg_last_modified = CONFIG_PATH.stat().st_mtime
     input_thread.start()
     while True:
         try:

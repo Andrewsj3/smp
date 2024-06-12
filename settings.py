@@ -2,6 +2,7 @@ from pathlib import Path
 import parser
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
+MACROS_PATH = Path("~/.config/smp/macros.json").expanduser()
 
 
 def config(*args, generate=False):
@@ -102,3 +103,7 @@ class Settings:
         if not Settings.playlist_dir.exists():
             print("CRITICAL: specified playlist directory does not exist")
             Settings.playlist_dir = Path("~").expanduser()
+        if not CONFIG_PATH.exists():
+            config()
+        if not MACROS_PATH.exists():
+            MACROS_PATH.write_text("{}")

@@ -1,8 +1,7 @@
-from settings import Settings
+from player import Player
 
 
 def ihelp(*topic):
-    Settings.reset_term()
     if topic:
         topic = " ".join(topic)
         if topic.startswith("queue") and len(topic.split()) == 2:
@@ -13,26 +12,26 @@ def ihelp(*topic):
             print(M_CMDS.get(subcmd, "No help for that"))
         else:
             print(CMDS.get(topic, "No help for that"))
-
-        Settings.set_term()
         return
+
     print("Welcome to smp's interactive help utility!")
     print("Type `quit` or Ctrl-D to return to smp")
     print("Type `list` to see the list of available commands")
     print("Type `list queue` to see the list of queue subcommands")
     print("Type `list macro` to see the list of macro subcommands")
     print("Type `tips` for a list of tips")
+    Player.awaiting_commands = False
     while True:
         try:
             name = input(">>> ").lower().strip()
         except EOFError:
             print()
-            Settings.set_term()
+            Player.awaiting_commands = True
             return
         if not name:
             continue
         if name == "quit":
-            Settings.set_term()
+            Player.awaiting_commands = True
             return
         elif name == "list":
             print("\n".join(CMDS))

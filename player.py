@@ -20,6 +20,7 @@ class Player:
     q_idx = 0
     q_should_loop = False
     q_should_shuffle = False
+    awaiting_commands = True
 
     @classmethod
     def update_info(cls, song):
