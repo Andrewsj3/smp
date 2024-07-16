@@ -1,7 +1,33 @@
-from player import Player
+def parametrized(dec):
+    def layer(*args, **kwargs):
+        def repl(f):
+            return dec(f, *args, **kwargs)
+
+        return repl
+
+    return layer
 
 
-def ihelp(*topic):
+@parametrized
+def command(func, player, topic=None, requires_args=False):
+    def inner(*args, **kwargs):
+        nonlocal topic
+        topic = topic or func.__name__
+        has_args = len(args) > 0
+        if not has_args:
+            if requires_args:
+                ihelp(topic, player=player)
+                return
+        else:
+            if args[0] in ("-h", "--help"):
+                ihelp(topic, player=player)
+                return
+        func(*args, **kwargs)
+
+    return inner
+
+
+def ihelp(*topic, player):
     if topic:
         topic = " ".join(topic)
         if topic.startswith("queue") and len(topic.split()) == 2:
@@ -20,18 +46,18 @@ def ihelp(*topic):
     print("Type `list queue` to see the list of queue subcommands")
     print("Type `list macro` to see the list of macro subcommands")
     print("Type `tips` for a list of tips")
-    Player.awaiting_commands = False
+    player.awaiting_commands = False
     while True:
         try:
             name = input(">>> ").lower().strip()
         except EOFError:
             print()
-            Player.awaiting_commands = True
+            player.awaiting_commands = True
             return
         if not name:
             continue
         if name == "quit":
-            Player.awaiting_commands = True
+            player.awaiting_commands = True
             return
         elif name == "list":
             print("\n".join(CMDS))
@@ -68,6 +94,10 @@ and start a playlist. The `exec` command allows you to do this at any time
 if you have scripts you prefer not to execute at launch.
 Scripts live in ~/.config/smp/scripts/.
 See `exec` for more.\n""")
+    print("""    4: Some commands automatically show their help sections
+when you don't provide arguments. Now, if you put '-h' or '--help' as the
+first argument to any command, you can see its help section without having
+to come here.\n""")
 
 
 M_CMDS = {
@@ -84,7 +114,7 @@ This allows you to use this macro across sessions.""",
     "delete": """Usage: macro delete <*args>
 For each macro in `args`, attempts to delete the macro.
 If it is present in ~/.config/smp/macros.json, it is
-also deleted there."""
+also deleted there.""",
 }
 Q_CMDS = {
     "add": """Usage: queue add <*songs>
@@ -128,7 +158,7 @@ and the songs that come immediately before and after it (if applicable).
 It also prints the previous 5 songs and the next 5 songs with
 the desired song in blinking text. May not work on all systems.
 Alternatively, you can enter a position to find out what song is
-at that position."""
+at that position.""",
 }
 CMDS = {
     "play": """Usage: play <song> [volume] [loops]
@@ -214,5 +244,5 @@ rename song1 name1 song2 name2 song3 name3 ...""",
     "exec": """Usage: exec <*scripts>
     For each script in scripts, read and execute the commands line by line.
     The scripts are processed in order, and the scripts are assumed to live at
-    ~/.config/smp/scripts"""
+    ~/.config/smp/scripts""",
 }

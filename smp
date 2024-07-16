@@ -21,7 +21,7 @@ import smp_queue as q
 from macros import macro
 from settings import Settings, config, reload_cfg
 from smp_common import ac_songs, autocomplete, gen_files, timestamp
-from smp_help import ihelp
+from smp_help import ihelp, command
 from smp_queue import Player, queue
 
 CONFIG_DIR = Path("~/.config/smp/").expanduser()
@@ -32,34 +32,31 @@ CMDS = {
     "config": lambda *args: config(*args),
     "delete": lambda *args: delete(*args),
     "exec": lambda *args: exec_scripts(*args),
-    "exit": lambda *args: smp_exit(),
+    "exit": lambda *args: smp_exit(*args),
     "find": lambda *args: find(*args),
     "forward": lambda *args: seek_relative(*args, forward=True),
-    "help": lambda *args: ihelp(*args),
+    "help": lambda *args: ihelp(*args, player=Player),
     "list": lambda *args: ls(*args),
-    "loop": lambda *args: loop(),
+    "loop": lambda *args: loop(*args),
     "ls": lambda *args: ls(*args),
     "macro": lambda *args: macro(*args),
-    "pause": lambda *args: pause(),
+    "pause": lambda *args: pause(*args),
     "play": lambda *args: play(*args),
     "queue": lambda *args: queue(*args),
-    "quit": lambda *args: smp_exit(),
+    "quit": lambda *args: smp_exit(*args),
     "rename": lambda *args: rename(*args),
     "repeat": lambda *args: repeat(*args),
     "rewind": lambda *args: seek_relative(*args),
     "seek": lambda *args: seek_absolute(*args),
-    "stop": lambda *args: stop(),
-    "time": lambda *args: time(),
-    "unpause": lambda *args: unpause(),
+    "stop": lambda *args: stop(*args),
+    "time": lambda *args: time(*args),
+    "unpause": lambda *args: unpause(*args),
     "volume": lambda *args: volume(*args),
 }
 
 
-def exec_scripts(*args, startup=False):
-    if not (args or startup):
-        # We don't want this if the user provides no scripts on startup
-        ihelp("exec")
-        return
+@command(Player, "exec")
+def exec_scripts(*args):
     for arg in args:
         if not (SCRIPTS_DIR / arg).exists():
             print(f"Script {SCRIPTS_DIR / arg} not found")
@@ -85,6 +82,7 @@ def should_repeat():
         return True
 
 
+@command(Player)
 def repeat(*args):
     cur_song = Path(Player.cur_song).stem
     if not cur_song:
@@ -138,10 +136,8 @@ def parse_input(string):
     return out
 
 
+@command(Player, requires_args=True)
 def play(*args):
-    if not args:
-        ihelp("play")
-        return
     if len(args) >= 1:
         song = args[0]
     if len(args) >= 2:
@@ -177,11 +173,12 @@ def play(*args):
     Player.should_pause = False
 
 
+@command(Player)
 def volume(*args):
     if not args:
         print(f"Volume: {Player.volume:.1f}%")
     elif len(args) == 1:
-        increment = args[0][0] in ('+', '-')
+        increment = args[0][0] in ("+", "-")
         # Increment/decrement volume instead of setting to a new value
         new_volume = type_converter(
             args[0], float, "Volume needs to be between 0 and 100"
@@ -196,6 +193,7 @@ def volume(*args):
         music.set_volume(Player.volume / 100)
 
 
+@command(Player)
 def ls(*args):
     songs = gen_files()
     songs.sort()
@@ -203,10 +201,8 @@ def ls(*args):
     print(Settings.ls_sep.join(humanized))
 
 
+@command(Player, requires_args=True)
 def find(*args):
-    if not args:
-        ihelp("find")
-        return
     songs = gen_files()
     songs.sort()
     humanized = {song[: song.index(".")] for song in songs}
@@ -216,7 +212,8 @@ def find(*args):
         print(f"{arg}: {Settings.ls_sep.join(songs)}")
 
 
-def loop():
+@command(Player)
+def loop(*args):
     if Player.loops > 0:
         Player.loops = 0
     Player.loops = ~Player.loops
@@ -233,7 +230,8 @@ def loop():
         music.pause()
 
 
-def time():
+@command(Player)
+def time(*args):
     if Player.duration == 0:
         print("Nothing playing")
         return
@@ -249,13 +247,8 @@ def time():
     )
 
 
+@command(Player, "rewind", requires_args=True)
 def seek_relative(*args, forward=False):
-    if not args:
-        if forward:
-            ihelp("forward")
-        else:
-            ihelp("rewind")
-        return
     if not Player.duration:
         print("Nothing playing")
         return
@@ -282,10 +275,8 @@ def seek_relative(*args, forward=False):
         music.pause()
 
 
+@command(Player, "seek", requires_args=True)
 def seek_absolute(*args):
-    if not args:
-        ihelp("seek")
-        return
     if not Player.duration:
         print("Nothing playing")
         return
@@ -305,7 +296,8 @@ def seek_absolute(*args):
         music.pause()
 
 
-def pause():
+@command(Player)
+def pause(*args):
     Player.should_pause = not Player.should_pause
     if Player.should_pause:
         music.pause()
@@ -313,19 +305,22 @@ def pause():
         music.unpause()
 
 
-def stop():
+@command(Player)
+def stop(*args):
     music.stop()
     music.unload()
     Player.cur_song = ""
     Player.playing_queue = False
 
 
-def unpause():
+@command(Player)
+def unpause(*args):
     music.unpause()
     Player.should_pause = False
 
 
-def smp_exit():
+@command(Player, "exit")
+def smp_exit(*args):
     music.unload()
     mixer.quit()
     exit(0)
@@ -388,7 +383,7 @@ def exec_commands(commands, visited=None):
             commands[idx] = macros[mcr]
             # Whenever we see a macro, we need to expand it to actual
             # commands, then we feed it back into this function
-            commands = "; ".join(commands).split(';')
+            commands = "; ".join(commands).split(";")
             commands[idx] += f' {" ".join(args)}'
             return exec_commands(commands, visited)
             # Recursion allows macros of arbitrary depth
@@ -399,25 +394,22 @@ def exec_commands(commands, visited=None):
     parse_and_execute("; ".join(args_list), CMDS)
 
 
+@command(Player, requires_args=True)
 def rename(*args):
-    if not args:
-        ihelp("rename")
-        return
     if len(args) % 2 != 0:
         print("Expected an even number of arguments")
         return
     for i in range(0, len(args), 2):
-        first, second = args[i], args[i+1]
+        first, second = args[i], args[i + 1]
         first = ac_songs(Settings.autocomplete, first)
         if not first:
             continue
         first_path = Settings.music_dir / first
         sfx = first_path.suffix
-        second_path = (Settings.music_dir /
-                       second).with_suffix(sfx)
+        second_path = (Settings.music_dir / second).with_suffix(sfx)
         first_path.rename(second_path)
         for file in Settings.playlist_dir.glob("*.csv"):
-            with open(file, 'r', newline="") as f:
+            with open(file, "r", newline="") as f:
                 reader = csv.reader(f, delimiter=",")
                 queue = next(iter(reader))
             if first in queue:
@@ -429,17 +421,15 @@ def rename(*args):
                 del tmp
 
 
+@command(Player, requires_args=True)
 def delete(*args):
-    if not args:
-        ihelp("delete")
-        return
     for arg in args:
         song = ac_songs(Settings.autocomplete, arg)
         if not song:
             continue
         song_path = Settings.music_dir / song
         for file in Settings.playlist_dir.glob("*.csv"):
-            with open(file, 'r', newline="") as f:
+            with open(file, "r", newline="") as f:
                 reader = csv.reader(f, delimiter=",")
                 queue = next(iter(reader))
             if song in queue:
@@ -459,7 +449,7 @@ def init(args):
     Player.macros = macros.load_macros()
     Player.volume = Settings.default_volume
     mixer.init()
-    exec_scripts(*map(Path, args), startup=True)
+    exec_scripts(*map(Path, args))
 
 
 def input_entered(user_input, **kwargs):
@@ -504,7 +494,7 @@ def main():
             play(Player.cur_song)
         if q.should_advance():
             q.play()
-        command, = user_input
+        (command,) = user_input
         if command is None:
             continue
         elif not command or "\x0c" in command or "\t" in command:  # Ctrl-l

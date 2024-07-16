@@ -1,10 +1,13 @@
 from pathlib import Path
+from smp_help import command
+from player import Player
 import parser
 
 CONFIG_PATH = Path("~/.config/smp/smp.conf").expanduser()
 MACROS_PATH = Path("~/.config/smp/macros.json").expanduser()
 
 
+@command(Player)
 def config(*args, generate=False):
     if generate or not CONFIG_PATH.exists():
         print("Generating default configuration file...")

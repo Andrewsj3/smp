@@ -2,7 +2,7 @@ from pathlib import Path
 from smp_common import autocomplete
 import json
 from player import Player
-from smp_help import ihelp
+from smp_help import command
 CONFIG_DIR = Path("~/.config/smp").expanduser()
 MACROS_PATH = CONFIG_DIR / "macros.json"
 M_CMDS = {
@@ -37,6 +37,7 @@ CMDS = {
 }
 
 
+@command(Player)
 def macro(*args):
     if not args:
         for key, value in Player.macros.items():
@@ -60,10 +61,8 @@ def load_macros():
             return json.load(f)
 
 
+@command(Player, "macro add", requires_args=True)
 def add_macro(*args):
-    if not args:
-        ihelp("macro add")
-        return
     mcr, *args = args
     for arg in args:
         if arg == mcr:
@@ -82,11 +81,9 @@ def add_macro(*args):
     Player.macros[mcr] = " ".join(args)
 
 
+@command(Player, "macro delete", requires_args=True)
 def del_macro(*args):
     saved_macros = load_macros()
-    if not args:
-        ihelp("macro delete")
-        return
     for arg in args:
         if arg in Player.macros:
             del Player.macros[arg]
@@ -98,10 +95,9 @@ def del_macro(*args):
         json.dump(saved_macros, f)
 
 
+@command(Player, "macro save", requires_args=True)
 def save_macro(*args):
     saved_macros = load_macros()
-    if not args:
-        return
     for mcr in args:
         if mcr in saved_macros:
             replace = input(

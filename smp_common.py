@@ -36,7 +36,7 @@ def autocomplete(cmd, cmd_set, *args):
     else:
         if Settings.autocomplete == 1:
             print(
-                "Ambiguous command, could be one of " f"{', '.join(commands)}"
+                f"Ambiguous command, could be one of {', '.join(commands)}"
             )
         elif Settings.autocomplete == 2:
             for idx, command in enumerate(commands, start=1):

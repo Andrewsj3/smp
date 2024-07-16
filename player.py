@@ -1,5 +1,4 @@
 from pathlib import Path
-from settings import Settings
 import mutagen
 
 
@@ -23,6 +22,6 @@ class Player:
     awaiting_commands = True
 
     @classmethod
-    def update_info(cls, song):
+    def update_info(cls, song, settings):
         cls.queue_info[song] = int(mutagen.File(
-            Settings.music_dir / song).info.length)
+            settings.music_dir / song).info.length)

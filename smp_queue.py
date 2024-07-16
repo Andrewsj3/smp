@@ -7,7 +7,7 @@ from player import Player
 from settings import Settings
 import re
 from smp_common import autocomplete, timestamp, ac_songs
-from smp_help import ihelp
+from smp_help import command
 
 
 def should_advance():
@@ -20,6 +20,7 @@ def should_advance():
             return False
 
 
+@command(Player)
 def queue(*args):
     if not args:
         show()
@@ -55,6 +56,7 @@ def show():
     print(", ".join(humanized))
 
 
+@command(Player, "queue find")
 def find(*args):
     if Player.q_should_shuffle:
         queue = Player.shuffled_queue
@@ -84,35 +86,37 @@ def find(*args):
             continue
         if song in queue:
             idx = queue.index(song)
-            humanized[idx] = f"\x1b[5m{humanized[idx]}\x1b[25m"
+            humanized[idx] = f"\x1b[4m\x1b[1m{humanized[idx]}\x1b[0m"
             idx_as_pos = num_as_position(idx + 1)
             if len(queue) == 1:
                 print(f"{Path(song).stem} is 1st in the queue")
                 return
             else:
                 if idx == 0:
-                    next = Path(queue[idx+1]).stem
-                    print(
-                        f"{Path(song).stem} is 1st in the queue,"
-                        f" before {next}")
+                    next = Path(queue[idx + 1]).stem
+                    print(f"{Path(song).stem} is 1st in the queue,"
+                          f" before {next}")
                 elif idx == len(queue) - 1:
-                    prev = Path(queue[idx-1]).stem
+                    prev = Path(queue[idx - 1]).stem
                     print(
                         f"{Path(song).stem} is {idx_as_pos} in the queue,"
-                        f" after {prev}")
+                        f" after {prev}"
+                    )
                 else:
-                    next = Path(queue[idx+1]).stem
-                    prev = Path(queue[idx-1]).stem
+                    next = Path(queue[idx + 1]).stem
+                    prev = Path(queue[idx - 1]).stem
                     print(
                         f"{Path(song).stem} is {idx_as_pos} in the queue,"
-                        f" before {next}, and after {prev}")
+                        f" before {next}, and after {prev}"
+                    )
                 print()
                 print(f'...{", ".join(humanized[max(idx-5, 0):idx+6])}...')
         else:
             print(f"{song} is not in the queue")
 
 
-def status():
+@command(Player, "queue status")
+def status(*args):
     total_time = sum(Player.queue_info.values())
     cur_time = music.get_pos() / 1000 + Player.offset
     if not Player.playing_queue:
@@ -124,8 +128,8 @@ def status():
         queue = Player.shuffled_queue
     else:
         queue = Player.queue
-    elapsed_time = sum(Player.queue_info[name]
-                       for name in queue[:Player.q_idx-1])
+    elapsed_time = sum(Player.queue_info[name] for name in
+                       queue[: Player.q_idx - 1])
     cur_song = Path(Player.cur_song).stem
     if len(queue) == 1:
         prev_song = next_song = "N/A"
@@ -134,10 +138,10 @@ def status():
         next_song = Path(queue[Player.q_idx]).stem
     elif Player.q_idx == len(queue):
         next_song = "N/A"
-        prev_song = Path(queue[Player.q_idx-2]).stem
+        prev_song = Path(queue[Player.q_idx - 2]).stem
     else:
         next_song = Path(queue[Player.q_idx]).stem
-        prev_song = Path(queue[Player.q_idx-2]).stem
+        prev_song = Path(queue[Player.q_idx - 2]).stem
 
     print(f"Previous song: {prev_song}, next song: {next_song}")
     print(f"Currently playing {cur_song} ({Player.q_idx}/{len(queue)})")
@@ -148,7 +152,8 @@ def status():
     )
 
 
-def clear():
+@command(Player, "queue clear")
+def clear(*args):
     Player.q_idx = 0
     Player.queue.clear()
     Player.shuffled_queue.clear()
@@ -158,10 +163,8 @@ def clear():
     # and the queue was suddenly empty
 
 
+@command(Player, "queue add", requires_args=True)
 def add(*args):
-    if not args:
-        ihelp("queue add")
-        return
     for arg in args:
         song = ac_songs(Settings.autocomplete, arg)
         if song:
@@ -170,10 +173,11 @@ def add(*args):
                 return
             Player.queue.append(song)
             Player.shuffled_queue.append(song)
-            Player.update_info(song)
+            Player.update_info(song, Settings)
 
 
-def qnext():
+@command(Player, "queue next")
+def qnext(*args):
     if not Player.playing_queue:
         if not Player.queue:
             print("Nothing queued")
@@ -186,7 +190,8 @@ def qnext():
         play()
 
 
-def prev():
+@command(Player, "queue prev")
+def prev(*args):
     if not Player.playing_queue:
         if not Player.queue:
             print("Nothing queued")
@@ -199,12 +204,14 @@ def prev():
         print("Can't go back any further")
 
 
-def loop():
+@command(Player, "queue loop")
+def loop(*args):
     Player.q_should_loop ^= True
     print(f"Queue loop: {'on' if Player.q_should_loop else 'off'}")
 
 
-def randomize():
+@command(Player, "queue randomize")
+def randomize(*args):
     if not Player.shuffled_queue:
         print("Nothing to randomize")
         return
@@ -217,13 +224,15 @@ def randomize():
     Player.q_should_shuffle = True
 
 
-def qshuffle():
+@command(Player, "queue shuffle")
+def qshuffle(*args):
     Player.q_should_shuffle ^= True
     if Player.queue == Player.shuffled_queue:
         randomize()
 
 
-def play():
+@command(Player, "queue play")
+def play(*args):
     if not Player.queue:
         print("Nothing queued")
         return
@@ -235,9 +244,8 @@ def play():
     if not Player.q_should_shuffle:
         Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
     else:
-        Player.cur_song = (
-            Settings.music_dir / Player.shuffled_queue[Player.q_idx]
-        )
+        Player.cur_song = Settings.music_dir / Player.\
+            shuffled_queue[Player.q_idx]
     song = Player.cur_song
     music.load(song)
     Player.loops = 0
@@ -250,16 +258,15 @@ def play():
         Player.q_idx += 1
 
 
+@command(Player, "queue save", requires_args=True)
 def save(*args):
-    if not args:
-        print("Expected a name")
-        return
     file = args[0]
     with open(f"{Settings.playlist_dir}/{file}.csv", "w", newline="") as f:
         writer = csv.writer(f, delimiter=",")
         writer.writerow(Player.queue)
 
 
+@command(Player, "queue load")
 def load(*args):
     if not args:
         print("Playlists:")
@@ -274,12 +281,14 @@ def load(*args):
         reader = csv.reader(f, delimiter=",")
         Player.queue = next(iter(reader))
         Player.shuffled_queue = [*Player.queue]
-    Player.queue_info = \
-        {name: int(mutagen.File(Settings.music_dir /
-                                name).info.length) for name in Player.queue}
+    Player.queue_info = {
+        name: int(mutagen.File(Settings.music_dir / name).info.length)
+        for name in Player.queue
+    }
     Player.q_idx = 0
 
 
+@command(Player, "queue remove", requires_args=True)
 def remove(*args):
     for arg in args:
         arg = ac_songs(Settings.autocomplete, arg)
@@ -294,6 +303,7 @@ def remove(*args):
             print("That song is not in the queue")
 
 
+@command(Player, "queue swap", requires_args=True)
 def swap(*args):
     if len(args) % 2 != 0:
         print("Expected an even number of arguments")
@@ -322,17 +332,17 @@ def swap(*args):
 
 Q_CMDS = {
     "add": lambda *args: add(*args),
-    "clear": lambda *args: clear(),
+    "clear": lambda *args: clear(*args),
     "remove": lambda *args: remove(*args),
-    "play": lambda *args: play(),
-    "next": lambda *args: qnext(),
-    "prev": lambda *args: prev(),
+    "play": lambda *args: play(*args),
+    "next": lambda *args: qnext(*args),
+    "prev": lambda *args: prev(*args),
     "find": lambda *args: find(*args),
-    "loop": lambda *args: loop(),
+    "loop": lambda *args: loop(*args),
     "swap": lambda *args: swap(*args),
-    "shuffle": lambda *args: qshuffle(),
-    "randomize": lambda *args: randomize(),
+    "shuffle": lambda *args: qshuffle(*args),
+    "randomize": lambda *args: randomize(*args),
     "save": lambda *args: save(*args),
     "load": lambda *args: load(*args),
-    "status": lambda *args: status(),
+    "status": lambda *args: status(*args),
 }
