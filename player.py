@@ -23,5 +23,6 @@ class Player:
 
     @classmethod
     def update_info(cls, song, settings):
-        cls.queue_info[song] = int(mutagen.File(
-            settings.music_dir / song).info.length)
+        cls.queue_info[song] = int(
+            mutagen.File(settings.music_dir / song).info.length
+        )

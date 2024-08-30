@@ -6,7 +6,7 @@ import mutagen
 from player import Player
 from settings import Settings
 import re
-from smp_common import autocomplete, timestamp, ac_songs
+from smp_common import autocomplete, timestamp, ac_songs, type_converter
 from smp_help import command
 
 
@@ -94,8 +94,10 @@ def find(*args):
             else:
                 if idx == 0:
                     next = Path(queue[idx + 1]).stem
-                    print(f"{Path(song).stem} is 1st in the queue,"
-                          f" before {next}")
+                    print(
+                        f"{Path(song).stem} is 1st in the queue,"
+                        f" before {next}"
+                    )
                 elif idx == len(queue) - 1:
                     prev = Path(queue[idx - 1]).stem
                     print(
@@ -110,7 +112,9 @@ def find(*args):
                         f" before {next}, and after {prev}"
                     )
                 print()
-                print(f'...{", ".join(humanized[max(idx-5, 0):idx+6])}...')
+                print(
+                    f'...{", ".join(humanized[max(idx - 5, 0) : idx + 6])}...'
+                )
         else:
             print(f"{song} is not in the queue")
 
@@ -128,8 +132,9 @@ def status(*args):
         queue = Player.shuffled_queue
     else:
         queue = Player.queue
-    elapsed_time = sum(Player.queue_info[name] for name in
-                       queue[: Player.q_idx - 1])
+    elapsed_time = sum(
+        Player.queue_info[name] for name in queue[: Player.q_idx - 1]
+    )
     cur_song = Path(Player.cur_song).stem
     if len(queue) == 1:
         prev_song = next_song = "N/A"
@@ -148,8 +153,30 @@ def status(*args):
     print(f"Total length of playlist: {timestamp(total_time)}")
     print(
         f"Total time elapsed: {timestamp(int(elapsed_time + time))} "
-        f"({100*((elapsed_time + time)/total_time):.1f}%)"
+        f"({100 * ((elapsed_time + time) / total_time):.1f}%)"
     )
+
+
+@command(Player, "queue insert", requires_args=True)
+def insert(*args):
+    if len(args) % 2 != 0:
+        print("Expected an even number of arguments")
+        return
+    for i in range(0, len(args), 2):
+        song, index = args[i], args[i + 1]
+        song = ac_songs(Settings.autocomplete, song)
+        index = type_converter(index, int, "Index must be a whole number")
+        if index is None:
+            return
+        if index not in range(1, len(Player.queue) + 1):
+            print(
+                f"Index must be a number between 1-{len(Player.queue) + 1}, not {index}"
+            )
+            return
+        index -= 1
+        if song not in Player.queue:
+            Player.queue.remove(song)
+        Player.queue.insert(index, song)
 
 
 @command(Player, "queue clear")
@@ -244,8 +271,9 @@ def play(*args):
     if not Player.q_should_shuffle:
         Player.cur_song = Settings.music_dir / Player.queue[Player.q_idx]
     else:
-        Player.cur_song = Settings.music_dir / Player.\
-            shuffled_queue[Player.q_idx]
+        Player.cur_song = (
+            Settings.music_dir / Player.shuffled_queue[Player.q_idx]
+        )
     song = Player.cur_song
     music.load(song)
     Player.loops = 0
@@ -333,16 +361,17 @@ def swap(*args):
 Q_CMDS = {
     "add": lambda *args: add(*args),
     "clear": lambda *args: clear(*args),
-    "remove": lambda *args: remove(*args),
-    "play": lambda *args: play(*args),
-    "next": lambda *args: qnext(*args),
-    "prev": lambda *args: prev(*args),
     "find": lambda *args: find(*args),
-    "loop": lambda *args: loop(*args),
-    "swap": lambda *args: swap(*args),
-    "shuffle": lambda *args: qshuffle(*args),
-    "randomize": lambda *args: randomize(*args),
-    "save": lambda *args: save(*args),
+    "insert": lambda *args: insert(*args),
     "load": lambda *args: load(*args),
+    "loop": lambda *args: loop(*args),
+    "next": lambda *args: qnext(*args),
+    "play": lambda *args: play(*args),
+    "prev": lambda *args: prev(*args),
+    "randomize": lambda *args: randomize(*args),
+    "remove": lambda *args: remove(*args),
+    "save": lambda *args: save(*args),
+    "shuffle": lambda *args: qshuffle(*args),
     "status": lambda *args: status(*args),
+    "swap": lambda *args: swap(*args),
 }

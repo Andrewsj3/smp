@@ -14,12 +14,10 @@ def gen_files():
     return list(
         map(
             lambda f: Path(f).name,
-            flatten(
-                [
-                    list(Settings.music_dir.glob(f"*.{ext}"))
-                    for ext in SUPPORTED_TYPES
-                ]
-            ),
+            flatten([
+                list(Settings.music_dir.glob(f"*.{ext}"))
+                for ext in SUPPORTED_TYPES
+            ]),
         )
     )
 
@@ -35,9 +33,7 @@ def autocomplete(cmd, cmd_set, *args):
         print("Invalid command")
     else:
         if Settings.autocomplete == 1:
-            print(
-                f"Ambiguous command, could be one of {', '.join(commands)}"
-            )
+            print(f"Ambiguous command, could be one of {', '.join(commands)}")
         elif Settings.autocomplete == 2:
             for idx, command in enumerate(commands, start=1):
                 print(f"    {idx}: {command}")
@@ -91,6 +87,13 @@ def timestamp(num):
         hours, mins = divmod(mins, 60)
         return f"{hours}:{mins:02}:{secs:02}"
     return f"{mins}:{secs:02}"
+
+
+def type_converter(data, type_, err_msg):
+    try:
+        return type_(data)
+    except ValueError:
+        print(err_msg)
 
 
 SUPPORTED_TYPES = ["mp3", "ogg", "wav", "flac", "opus"]

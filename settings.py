@@ -55,9 +55,7 @@ ls_sep = ", "
 
 
 def reload_cfg(startup=True):
-    Settings.read_config(
-        parser.get_config(CONFIG_PATH), startup
-    )
+    Settings.read_config(parser.get_config(CONFIG_PATH), startup)
 
 
 class Settings:
@@ -76,8 +74,14 @@ class Settings:
     def read_config(cls, cfg_dict, startup=True):
         for key in cfg_dict:
             cls._cfg_dict[key] = cfg_dict[key]
-        attrs = {"music_dir", "playlist_dir", "prompt",
-                 "autocomplete", "default_volume", "ls_sep"}
+        attrs = {
+            "music_dir",
+            "playlist_dir",
+            "prompt",
+            "autocomplete",
+            "default_volume",
+            "ls_sep",
+        }
         for attr in attrs:
             type_ = cls.__annotations__[attr]
             try:

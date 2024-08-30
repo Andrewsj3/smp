@@ -20,7 +20,7 @@ import macros
 import smp_queue as q
 from macros import macro
 from settings import Settings, config, reload_cfg
-from smp_common import ac_songs, autocomplete, gen_files, timestamp
+from smp_common import ac_songs, autocomplete, gen_files, timestamp, type_converter
 from smp_help import ihelp, command
 from smp_queue import Player, queue
 
@@ -102,13 +102,6 @@ def repeat(*args):
 
 def clamp(num, low, high):
     return min(max(num, low), high)
-
-
-def type_converter(data, type_, err_msg):
-    try:
-        return type_(data)
-    except ValueError:
-        print(err_msg)
 
 
 def parse_input(string):
@@ -452,7 +445,7 @@ def init(args):
     exec_scripts(*map(Path, args))
 
 
-def input_entered(user_input, **kwargs):
+def input_entered(user_input):
     while True:
         sleep(0.1)
         if Player.awaiting_commands:

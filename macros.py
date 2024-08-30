@@ -3,12 +3,13 @@ from smp_common import autocomplete
 import json
 from player import Player
 from smp_help import command
+
 CONFIG_DIR = Path("~/.config/smp").expanduser()
 MACROS_PATH = CONFIG_DIR / "macros.json"
 M_CMDS = {
     "add": lambda *args: add_macro(*args),
     "save": lambda *args: save_macro(*args),
-    "delete": lambda *args: del_macro(*args)
+    "delete": lambda *args: del_macro(*args),
 }
 
 CMDS = {
@@ -53,7 +54,7 @@ def macro(*args):
 def load_macros():
     if not CONFIG_DIR.exists():
         CONFIG_DIR.mkdir()
-        with open(MACROS_PATH, 'w') as f:
+        with open(MACROS_PATH, "w") as f:
             f.write("{}")
         return {}
     else:
@@ -91,7 +92,7 @@ def del_macro(*args):
                 del saved_macros[arg]
         else:
             print("Macro not found")
-    with open(MACROS_PATH, 'w') as f:
+    with open(MACROS_PATH, "w") as f:
         json.dump(saved_macros, f)
 
 
@@ -102,10 +103,11 @@ def save_macro(*args):
         if mcr in saved_macros:
             replace = input(
                 "This macro already exists. "
-                "Do you want to replace it? (y/n) ").lower()
-            if replace == 'y':
+                "Do you want to replace it? (y/n) "
+            ).lower()
+            if replace == "y":
                 saved_macros[mcr] = Player.macros[mcr]
         else:
             saved_macros[mcr] = Player.macros[mcr]
-    with open(MACROS_PATH, 'w') as f:
+    with open(MACROS_PATH, "w") as f:
         json.dump(saved_macros, f)

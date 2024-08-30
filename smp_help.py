@@ -159,6 +159,10 @@ It also prints the previous 5 songs and the next 5 songs with
 the desired song in blinking text. May not work on all systems.
 Alternatively, you can enter a position to find out what song is
 at that position.""",
+    "insert": """Usage: queue insert <*<song> <index>>
+For each pair of songs and indexes, move the specified song to the given index,
+i.e. `queue insert my_song 1` moves my_song to the beginning of the queue, or adds it
+if it is not currently in the queue.""",
 }
 CMDS = {
     "play": """Usage: play <song> [volume] [loops]
